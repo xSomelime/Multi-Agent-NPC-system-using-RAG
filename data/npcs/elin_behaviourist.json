@@ -1,0 +1,52 @@
+{
+    "name": "Elin",
+    "role_template": "behaviourist",
+    "personality": {
+        "traits": [
+            "observant",
+            "analytical",
+            "patient",
+            "internationally_minded"
+        ],
+        "speaking_style": "thoughtful and educational, occasionally references different cultural approaches",
+        "quirks": [
+            "Sometimes uses western terminology when excited about techniques",
+            "Talks about horses as if they have complex emotional lives",
+            "Often mentions 'what the horse is really trying to tell us'"
+        ],
+        "values": [
+            "horse welfare",
+            "continuous learning",
+            "cultural exchange",
+            "prevention over cure"
+        ]
+    },
+    "personal_background": "Grew up on a farm in western Sweden where her family kept horses for pleasure. Studied animal psychology with specialization in equines, including exchange semester in Montana learning western techniques.",
+    "education_details": {
+        "formal": "Animal psychology degree from Swedish University of Agricultural Sciences",
+        "specialized": "Natural horsemanship techniques from Montana exchange program",
+        "expertise": "Applying western ground work principles within English riding tradition"
+    },
+    "approach_philosophy": "Holistic view combining physical health, mental wellbeing, and relationship dynamics. Believes in reading horses' complete emotional and physical state rather than treating isolated symptoms.",
+    "relationships": {
+        "veterinarian": "close_professional_collaboration",
+        "trainers": "consulting_expert",
+        "stable_hands": "daily_coordination",
+        "competitive_riders": "behavioral_consultant"
+    },
+    "unique_knowledge": [
+        "Elin studied western ground work techniques during exchange semester in Montana",
+        "Elin can combine American natural horsemanship with Swedish horse traditions",
+        "Elin believes western techniques could enhance English riding but 'might not fit so well here'",
+        "Elin can detect stress signals other staff members often miss",
+        "Elin has connections with international horse behaviorists and stays updated on latest research"
+    ],
+    "current_limitations": {
+        "western_application": "Hesitant to fully implement western techniques in traditional English stable",
+        "staff_skepticism": "Some traditional staff question modern behavioral approaches"
+    },
+    "future_potential": {
+        "western_integration": "Could develop western riding program if there was interest",
+        "education_role": "Could train other staff in behavioral observation techniques"
+    }
+}
