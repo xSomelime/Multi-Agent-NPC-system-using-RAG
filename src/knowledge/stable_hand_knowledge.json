@@ -1,0 +1,102 @@
+{
+    "domain": "stable_hand",
+    "description": "Daily horse care, feeding, grooming, and stable maintenance knowledge",
+    "knowledge_chunks": [
+        {
+            "id": "feeding_fundamentals",
+            "topic": "feeding_basics",
+            "content": "Horses need 2-3% of body weight in feed daily, split into 2-3 meals. Feeding times should be consistent - horses thrive on routine.",
+            "confidence": "high",
+            "source": "daily_care_fundamentals"
+        },
+        {
+            "id": "grooming_routine",
+            "topic": "grooming",
+            "content": "Daily grooming includes brushing, hoof picking, and health checks. Proper grooming strengthens bond with horses and allows health monitoring.",
+            "confidence": "high",
+            "source": "daily_care_fundamentals"
+        },
+        {
+            "id": "turnout_management",
+            "topic": "turnout",
+            "content": "Turnout schedule depends on weather, horse temperament, and paddock availability. Individual horses have different needs based on age and activity level.",
+            "confidence": "high",
+            "source": "stable_management"
+        },
+        {
+            "id": "water_management",
+            "topic": "water",
+            "content": "Fresh water must be available at all times, check automatic waterers daily. Signs of illness include changes in appetite, behavior, or manure consistency.",
+            "confidence": "high",
+            "source": "basic_health_monitoring"
+        },
+        {
+            "id": "stall_maintenance",
+            "topic": "cleaning",
+            "content": "Stalls need daily mucking, fresh bedding as needed. Equipment maintenance is crucial for safety and efficiency.",
+            "confidence": "high",
+            "source": "stable_maintenance"
+        },
+        {
+            "id": "stall_cleaning",
+            "topic": "cleaning",
+            "content": "Stalls should be mucked out daily. Remove wet bedding and manure, add fresh bedding as needed.",
+            "confidence": "high",
+            "source": "stable_maintenance"
+        },
+        {
+            "id": "water_requirements",
+            "topic": "water",
+            "content": "Horses drink 5-10 gallons of water daily. Check water buckets twice daily and ensure clean, fresh water.",
+            "confidence": "high",
+            "source": "basic_care"
+        },
+        {
+            "id": "hay_quality",
+            "topic": "hay",
+            "content": "Good hay is green, sweet-smelling, and free from dust and mold. Avoid hay that's brown, musty, or has visible mold.",
+            "confidence": "high",
+            "source": "feeding"
+        },
+        {
+            "id": "bedding_types",
+            "topic": "bedding",
+            "content": "Common bedding includes straw, wood shavings, and pelleted bedding. Each has different absorption and cost benefits.",
+            "confidence": "medium",
+            "source": "stable_management"
+        },
+        {
+            "id": "feed_storage",
+            "topic": "storage",
+            "content": "Feed should be stored in sealed containers away from moisture. Check for pests and expired feed regularly.",
+            "confidence": "high",
+            "source": "feed_management"
+        },
+        {
+            "id": "turnout_routine",
+            "topic": "turnout",
+            "content": "Most horses benefit from daily turnout. Check fencing and gates before releasing horses to pasture.",
+            "confidence": "high",
+            "source": "daily_routine"
+        }
+    ],
+    "common_scenarios": [
+        "daily_feeding_schedule",
+        "grooming_before_riding",
+        "stall_cleaning_routine",
+        "checking_water_systems",
+        "preparing_for_turnout"
+    ],
+    "expertise_keywords": [
+        "feeding",
+        "grooming",
+        "mucking",
+        "bedding",
+        "hay",
+        "grain",
+        "water",
+        "stalls",
+        "turnout",
+        "cleaning"
+    ]
+}

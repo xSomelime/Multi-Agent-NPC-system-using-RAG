@@ -1,0 +1,116 @@
+{
+    "domain": "trainer",
+    "description": "Horse training methods, equipment, techniques, and performance knowledge",
+    "knowledge_chunks": [
+        {
+            "id": "training_foundation",
+            "topic": "training_basics",
+            "content": "Systematic training progression is essential for both horse and rider development. Proper technique must be established before advancing to higher levels.",
+            "confidence": "high",
+            "source": "training_fundamentals"
+        },
+        {
+            "id": "mental_preparation",
+            "topic": "psychology",
+            "content": "Mental preparation is equally important as physical conditioning. Competition preparation involves both technical skills and mental fortitude.",
+            "confidence": "high",
+            "source": "sports_psychology"
+        },
+        {
+            "id": "individualized_approach",
+            "topic": "methodology",
+            "content": "Each horse and rider combination requires individualized training approaches. Regular assessment and adjustment of training plans ensures optimal progress.",
+            "confidence": "high",
+            "source": "training_methodology"
+        },
+        {
+            "id": "safety_protocols",
+            "topic": "safety",
+            "content": "Safety protocols must never be compromised for faster progress. Ground work establishes respect and communication before mounted work.",
+            "confidence": "high",
+            "source": "safety_standards"
+        },
+        {
+            "id": "biomechanics_understanding",
+            "topic": "technical",
+            "content": "Understanding biomechanics improves both performance and horse welfare. Consistent practice with correct fundamentals builds long-term success.",
+            "confidence": "high",
+            "source": "technical_knowledge"
+        },
+        {
+            "id": "basic_groundwork",
+            "topic": "groundwork",
+            "content": "Groundwork establishes respect and communication. Start with leading, backing up, and yielding hindquarters.",
+            "confidence": "high",
+            "source": "training_fundamentals"
+        },
+        {
+            "id": "saddle_fitting",
+            "topic": "equipment",
+            "content": "Proper saddle fit is crucial. The saddle should not pinch the withers or rock on the horse's back.",
+            "confidence": "high",
+            "source": "equipment_knowledge"
+        },
+        {
+            "id": "bit_selection",
+            "topic": "equipment",
+            "content": "Start with a simple snaffle bit. Harsher bits should only be used by experienced riders with proper technique.",
+            "confidence": "high",
+            "source": "equipment_knowledge"
+        },
+        {
+            "id": "training_progression",
+            "topic": "training",
+            "content": "Training should progress gradually. Master one skill before moving to the next. Consistency is key.",
+            "confidence": "high",
+            "source": "training_methods"
+        },
+        {
+            "id": "positive_reinforcement",
+            "topic": "methods",
+            "content": "Reward good behavior immediately. Pressure and release techniques work well with horses.",
+            "confidence": "high",
+            "source": "training_philosophy"
+        },
+        {
+            "id": "warm_up_routine",
+            "topic": "riding",
+            "content": "Always warm up with 10-15 minutes of walking and light trotting before intensive work.",
+            "confidence": "high",
+            "source": "riding_basics"
+        },
+        {
+            "id": "jumping_basics",
+            "topic": "jumping",
+            "content": "Start with ground poles, then cavaletti, then small jumps. Focus on rhythm and balance over height.",
+            "confidence": "medium",
+            "source": "jumping_training"
+        },
+        {
+            "id": "dressage_fundamentals",
+            "topic": "dressage",
+            "content": "Dressage develops balance, flexibility, and obedience. Start with basic figures like circles and serpentines.",
+            "confidence": "medium",
+            "source": "dressage_training"
+        }
+    ],
+    "common_scenarios": [
+        "equipment_selection",
+        "training_session_planning",
+        "problem_behavior_correction",
+        "rider_instruction",
+        "horse_evaluation"
+    ],
+    "expertise_keywords": [
+        "training",
+        "saddle",
+        "bridle",
+        "bit",
+        "groundwork",
+        "riding",
+        "jumping",
+        "dressage",
+        "equipment",
+        "techniques"
+    ]
+}

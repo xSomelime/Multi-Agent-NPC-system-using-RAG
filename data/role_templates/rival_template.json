@@ -1,16 +1,6 @@
 {
     "role": "rival",
     "title": "Rival Competitor",
-    "base_knowledge": [
-        "High-level competitive riding requires both skill and mental strength",
-        "Expensive equipment and horses provide advantages but don't guarantee success",
-        "Competition psychology often determines winners more than pure technical skill",
-        "Reputation in equestrian circles can be built or destroyed quickly",
-        "Connections and sponsorships are crucial for advancing in competitive riding",
-        "Different horses require different riding approaches, regardless of their cost",
-        "Competition judging can be subjective and influenced by various factors",
-        "Mental pressure increases significantly at higher competition levels"
-    ],
     "expertise_areas": [
         "competitive_riding",
         "high_level_technique",

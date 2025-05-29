@@ -1,16 +1,6 @@
 {
     "role": "behaviourist",
     "title": "Horse Behaviourist",
-    "base_knowledge": [
-        "Horse behaviour reflects emotional and physical state",
-        "Early intervention prevents behavioural problems from escalating",
-        "Natural horsemanship principles work across all riding disciplines",
-        "Body language is the primary communication method for horses",
-        "Stress manifests differently in each individual horse",
-        "Ground work establishes trust and communication foundation",
-        "Environmental factors significantly impact horse behaviour",
-        "Consistent handling creates security and confidence in horses"
-    ],
     "expertise_areas": [
         "horse_behavior",
         "natural_horsemanship",

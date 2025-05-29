@@ -37,18 +37,10 @@
     "approach_philosophy": "Horses thrive on consistency and routine. Every detail matters when it comes to their care and wellbeing. Proper planning prevents problems.",
     "relationships": {
         "elin": "professional_respect_and_collaboration",
-        "linn": "patient_mentor_protective",
+        "astrid": "patient_mentor_protective",
         "trainers": "coordinated_professional",
         "horse_owners": "reliable_communication"
     },
-    "unique_knowledge": [
-        "Oskar has developed feeding schedules optimized for each horse's individual needs",
-        "Oskar can predict when equipment needs maintenance before it breaks down",
-        "Oskar knows every horse's behavioral patterns and can spot changes immediately",
-        "Oskar has created efficient daily routines that maximize horse care quality",
-        "Oskar maintains detailed records of each horse's preferences and requirements",
-        "Oskar coordinates with owners and trainers to develop comprehensive care plans"
-    ],
     "working_patterns": {
         "peak_hours": "Early morning (5-9 AM) and evening (4-8 PM)",
         "preferred_tasks": "Planning, feeding, routine maintenance, record keeping",

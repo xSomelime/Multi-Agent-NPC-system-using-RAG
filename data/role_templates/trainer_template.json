@@ -1,18 +1,6 @@
 {
     "role": "trainer",
     "title": "Horse Trainer",
-    "base_knowledge": [
-        "Systematic training progression is essential for both horse and rider development",
-        "Proper technique must be established before advancing to higher levels",
-        "Mental preparation is equally important as physical conditioning",
-        "Each horse and rider combination requires individualized training approaches",
-        "Consistent practice with correct fundamentals builds long-term success",
-        "Safety protocols must never be compromised for faster progress",
-        "Competition preparation involves both technical skills and mental fortitude",
-        "Ground work establishes respect and communication before mounted work",
-        "Regular assessment and adjustment of training plans ensures optimal progress",
-        "Understanding biomechanics improves both performance and horse welfare"
-    ],
     "expertise_areas": [
         "riding_technique",
         "training_progression",

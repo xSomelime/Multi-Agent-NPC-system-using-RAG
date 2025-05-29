@@ -1,0 +1,109 @@
+{
+    "domain": "behaviourist",
+    "description": "Horse behavior, psychology, health monitoring, and wellness knowledge",
+    "knowledge_chunks": [
+        {
+            "id": "behavioral_foundation",
+            "topic": "behavior_basics",
+            "content": "Horse behaviour reflects emotional and physical state. Early intervention prevents behavioural problems from escalating.",
+            "confidence": "high",
+            "source": "behavioral_fundamentals"
+        },
+        {
+            "id": "communication_basics",
+            "topic": "communication",
+            "content": "Body language is the primary communication method for horses. Consistent handling creates security and confidence.",
+            "confidence": "high",
+            "source": "communication_fundamentals"
+        },
+        {
+            "id": "stress_signals",
+            "topic": "behavior",
+            "content": "Stress signs include excessive sweating, pacing, weaving, cribbing, and loss of appetite.",
+            "confidence": "high",
+            "source": "behavioral_assessment"
+        },
+        {
+            "id": "natural_horsemanship",
+            "topic": "training_philosophy",
+            "content": "Natural horsemanship principles work across all riding disciplines. Ground work establishes trust and communication foundation.",
+            "confidence": "high",
+            "source": "training_philosophy"
+        },
+        {
+            "id": "environmental_factors",
+            "topic": "environment",
+            "content": "Environmental factors significantly impact horse behaviour. Stress manifests differently in each individual horse.",
+            "confidence": "high",
+            "source": "environmental_psychology"
+        },
+        {
+            "id": "herd_dynamics",
+            "topic": "social_behavior",
+            "content": "Horses are herd animals with clear hierarchies. Dominant horses control resources and movement.",
+            "confidence": "high",
+            "source": "social_psychology"
+        },
+        {
+            "id": "body_language",
+            "topic": "communication",
+            "content": "Ears, eyes, and tail position indicate mood. Pinned ears and raised tail often signal aggression or excitement.",
+            "confidence": "high",
+            "source": "equine_communication"
+        },
+        {
+            "id": "fear_responses",
+            "topic": "behavior",
+            "content": "Horses have flight response. They may spook, freeze, or bolt when frightened. Desensitization helps reduce fear.",
+            "confidence": "high",
+            "source": "fear_psychology"
+        },
+        {
+            "id": "learning_theory",
+            "topic": "psychology",
+            "content": "Horses learn through repetition and association. They respond well to consistent, clear communication.",
+            "confidence": "high",
+            "source": "learning_psychology"
+        },
+        {
+            "id": "health_monitoring",
+            "topic": "health",
+            "content": "Normal vital signs: heart rate 28-44 bpm, respiration 8-16 breaths/min, temperature 99-101°F.",
+            "confidence": "high",
+            "source": "health_assessment"
+        },
+        {
+            "id": "lameness_detection",
+            "topic": "health",
+            "content": "Observe horse in motion for uneven gait, head bobbing, or reluctance to move. Early detection prevents injury.",
+            "confidence": "medium",
+            "source": "physical_assessment"
+        },
+        {
+            "id": "environmental_enrichment",
+            "topic": "welfare",
+            "content": "Horses need mental stimulation. Provide toys, varied terrain, and social interaction to prevent boredom.",
+            "confidence": "medium",
+            "source": "welfare_science"
+        }
+    ],
+    "common_scenarios": [
+        "behavioral_assessment",
+        "stress_evaluation",
+        "health_monitoring",
+        "problem_behavior_analysis",
+        "welfare_consultation"
+    ],
+    "expertise_keywords": [
+        "behavior",
+        "stress",
+        "health",
+        "psychology",
+        "body language",
+        "herd",
+        "fear",
+        "learning",
+        "welfare",
+        "assessment"
+    ]
+}

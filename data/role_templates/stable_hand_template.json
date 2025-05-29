@@ -1,18 +1,6 @@
 {
     "role": "stable_hand",
     "title": "Stable Hand",
-    "base_knowledge": [
-        "Horses need 2-3% of body weight in feed daily, split into 2-3 meals",
-        "Daily grooming includes brushing, hoof picking, and health checks",
-        "Turnout schedule depends on weather, horse temperament, and paddock availability",
-        "Feeding times should be consistent - horses thrive on routine",
-        "Fresh water must be available at all times, check automatic waterers daily",
-        "Stalls need daily mucking, fresh bedding as needed",
-        "Individual horses have different dietary needs based on age, activity level, and health",
-        "Signs of illness include changes in appetite, behavior, or manure consistency",
-        "Proper grooming strengthens bond with horses and allows health monitoring",
-        "Equipment maintenance is crucial for safety and efficiency"
-    ],
     "expertise_areas": [
         "daily_horse_care",
         "feeding_schedules",

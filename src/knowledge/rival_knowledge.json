@@ -1,0 +1,81 @@
+{
+    "domain": "rival",
+    "description": "High-level competitive riding, expensive equipment, and equestrian politics knowledge",
+    "knowledge_chunks": [
+        {
+            "id": "competition_fundamentals",
+            "topic": "competition_basics",
+            "content": "High-level competitive riding requires both skill and mental strength. Competition psychology often determines winners more than pure technical skill.",
+            "confidence": "high",
+            "source": "competitive_experience"
+        },
+        {
+            "id": "equipment_advantages",
+            "topic": "equipment",
+            "content": "Expensive equipment and horses provide advantages but don't guarantee success. Different horses require different riding approaches, regardless of their cost.",
+            "confidence": "high",
+            "source": "equipment_knowledge"
+        },
+        {
+            "id": "reputation_management",
+            "topic": "politics",
+            "content": "Reputation in equestrian circles can be built or destroyed quickly. Connections and sponsorships are crucial for advancing in competitive riding.",
+            "confidence": "high",
+            "source": "industry_knowledge"
+        },
+        {
+            "id": "competition_judging",
+            "topic": "politics",
+            "content": "Competition judging can be subjective and influenced by various factors. Mental pressure increases significantly at higher competition levels.",
+            "confidence": "medium",
+            "source": "competitive_experience"
+        },
+        {
+            "id": "horse_market_expertise",
+            "topic": "market_knowledge",
+            "content": "Knowledge of market values and breeding history of high-end competition horses. Understanding which bloodlines and breeders command premium prices.",
+            "confidence": "high",
+            "source": "market_experience"
+        },
+        {
+            "id": "political_dynamics",
+            "topic": "politics",
+            "content": "Understanding the political dynamics of high-level equestrian competition. Knowledge of which trainers, judges, and organizers have influence.",
+            "confidence": "high",
+            "source": "insider_knowledge"
+        },
+        {
+            "id": "sponsorship_strategies",
+            "topic": "business",
+            "content": "Awareness of sponsorship opportunities and how to leverage family connections. Understanding the business side of competitive riding.",
+            "confidence": "medium",
+            "source": "family_connections"
+        },
+        {
+            "id": "luxury_equipment",
+            "topic": "equipment",
+            "content": "Detailed knowledge of premium brands and their supposed advantages. Can identify expensive equipment and justify its cost instantly.",
+            "confidence": "high",
+            "source": "personal_experience"
+        }
+    ],
+    "common_scenarios": [
+        "equipment_evaluation",
+        "competition_strategy",
+        "political_maneuvering",
+        "reputation_building",
+        "sponsorship_negotiation"
+    ],
+    "expertise_keywords": [
+        "competition",
+        "expensive",
+        "premium",
+        "brands",
+        "politics",
+        "sponsorship",
+        "reputation",
+        "luxury",
+        "market_value",
+        "connections"
+    ]
+}
