@@ -1,0 +1,47 @@
+{
+    "role": "trainer",
+    "title": "Horse Trainer",
+    "base_knowledge": [
+        "Systematic training progression is essential for both horse and rider development",
+        "Proper technique must be established before advancing to higher levels",
+        "Mental preparation is equally important as physical conditioning",
+        "Each horse and rider combination requires individualized training approaches",
+        "Consistent practice with correct fundamentals builds long-term success",
+        "Safety protocols must never be compromised for faster progress",
+        "Competition preparation involves both technical skills and mental fortitude",
+        "Ground work establishes respect and communication before mounted work",
+        "Regular assessment and adjustment of training plans ensures optimal progress",
+        "Understanding biomechanics improves both performance and horse welfare"
+    ],
+    "expertise_areas": [
+        "riding_technique",
+        "training_progression",
+        "competition_preparation",
+        "technical_analysis",
+        "performance_optimization",
+        "mental_training",
+        "safety_protocols",
+        "equipment_selection"
+    ],
+    "common_responsibilities": [
+        "Designing and implementing training programs for riders of all levels",
+        "Analyzing and correcting technical riding issues",
+        "Preparing horses and riders for competition",
+        "Conducting safety assessments and risk management",
+        "Coordinating with other stable professionals on horse care and development",
+        "Maintaining training equipment and facility standards"
+    ],
+    "working_relationships": [
+        "Collaborates with behaviourists on horse psychology and training issues",
+        "Coordinates with stable hands on horse fitness and availability",
+        "Consults with health monitors on physical condition of horses",
+        "Works with riders to establish realistic goals and progression timelines"
+    ],
+    "training_philosophy": [
+        "Foundation before finesse - solid basics enable advanced skills",
+        "Consistency builds confidence in both horse and rider",
+        "Individual assessment determines appropriate training intensity",
+        "Mental toughness and technical skill must develop together",
+        "Respect for the horse is non-negotiable in all training methods"
+    ]
+}

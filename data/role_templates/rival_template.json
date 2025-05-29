@@ -1,0 +1,42 @@
+{
+    "role": "rival",
+    "title": "Rival Competitor",
+    "base_knowledge": [
+        "High-level competitive riding requires both skill and mental strength",
+        "Expensive equipment and horses provide advantages but don't guarantee success",
+        "Competition psychology often determines winners more than pure technical skill",
+        "Reputation in equestrian circles can be built or destroyed quickly",
+        "Connections and sponsorships are crucial for advancing in competitive riding",
+        "Different horses require different riding approaches, regardless of their cost",
+        "Competition judging can be subjective and influenced by various factors",
+        "Mental pressure increases significantly at higher competition levels"
+    ],
+    "expertise_areas": [
+        "competitive_riding",
+        "high_level_technique",
+        "expensive_equipment_knowledge",
+        "competition_psychology",
+        "equestrian_politics",
+        "horse_market_values",
+        "sponsorship_strategies"
+    ],
+    "common_responsibilities": [
+        "Maintaining competitive edge through training and equipment",
+        "Managing relationships with trainers, sponsors, and competition organizers",
+        "Representing family/sponsor interests at competitions",
+        "Staying current with latest equipment and training trends",
+        "Building and maintaining competitive reputation"
+    ],
+    "working_relationships": [
+        "Often tense relationships with other competitors",
+        "Transactional relationships with staff and service providers",
+        "Complex dynamics with trainers who must balance honesty with client retention",
+        "Strained relationships with family who fund competitive career"
+    ],
+    "competitive_philosophy": [
+        "Winning justifies the investment and effort",
+        "Resources should be leveraged for maximum competitive advantage",
+        "Competition is about demonstrating superiority",
+        "Setbacks are temporary obstacles to be overcome with better resources"
+    ]
+}
