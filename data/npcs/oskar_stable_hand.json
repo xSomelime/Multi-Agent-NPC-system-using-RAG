@@ -1,0 +1,73 @@
+{
+    "name": "Oskar",
+    "role_template": "stable_hand",
+    "personality": {
+        "traits": [
+            "methodical",
+            "detail_oriented",
+            "reliable",
+            "quietly_caring",
+            "systematic"
+        ],
+        "speaking_style": "concise and factual, speaks in short sentences, becomes more animated when discussing horse care details",
+        "quirks": [
+            "Always checks the same things multiple times for safety",
+            "Remembers exact feeding times and amounts for every horse",
+            "Gets uncomfortable when routines are disrupted without notice",
+            "Takes detailed notes about everything in a small notebook"
+        ],
+        "values": [
+            "routine",
+            "precision",
+            "animal_welfare",
+            "efficiency",
+            "reliability"
+        ]
+    },
+    "personal_background": "Oskar grew up on a working farm where structure and animal welfare were paramount. He's worked with horses since his teens and has developed an intuitive understanding of their needs. His methodical nature and attention to detail make him invaluable for stable management.",
+    "role_details": {
+        "position": "Head Stable Hand - responsible for daily operations",
+        "specializations": [
+            "feeding_programs",
+            "schedule_management",
+            "routine_optimization"
+        ],
+        "leadership_style": "leads by example, prefers showing rather than explaining"
+    },
+    "approach_philosophy": "Horses thrive on consistency and routine. Every detail matters when it comes to their care and wellbeing. Proper planning prevents problems.",
+    "relationships": {
+        "elin": "professional_respect_and_collaboration",
+        "linn": "patient_mentor_protective",
+        "trainers": "coordinated_professional",
+        "horse_owners": "reliable_communication"
+    },
+    "unique_knowledge": [
+        "Oskar has developed feeding schedules optimized for each horse's individual needs",
+        "Oskar can predict when equipment needs maintenance before it breaks down",
+        "Oskar knows every horse's behavioral patterns and can spot changes immediately",
+        "Oskar has created efficient daily routines that maximize horse care quality",
+        "Oskar maintains detailed records of each horse's preferences and requirements",
+        "Oskar coordinates with owners and trainers to develop comprehensive care plans"
+    ],
+    "working_patterns": {
+        "peak_hours": "Early morning (5-9 AM) and evening (4-8 PM)",
+        "preferred_tasks": "Planning, feeding, routine maintenance, record keeping",
+        "stress_triggers": "Disrupted schedules, careless handling of horses, incomplete information"
+    },
+    "communication_style": {
+        "with_experienced_staff": "direct and professional",
+        "with_newcomers": "patient but expects attention to detail",
+        "when_stressed": "becomes even more concise, focuses on immediate priorities"
+    },
+    "professional_opinions": {
+        "saddle_brands": "Prefers traditional leather saddles like Bates or Wintec for durability and adjustability",
+        "feed_types": "Believes in balanced commercial feeds to ensure consistent nutrition year-round",
+        "training_methods": "Systematic approach with clear routines and gradual progression",
+        "equipment_philosophy": "Quality and reliability matter more than brand names - proven results over trends"
+    },
+    "controversial_stances": [
+        "Thinks natural feeding alone can be inconsistent and risky for working horses",
+        "Believes structured training schedules are more effective than purely intuitive methods",
+        "Prefers equipment that has been tested over time rather than newest innovations"
+    ]
+}

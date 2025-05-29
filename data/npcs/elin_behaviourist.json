@@ -48,5 +48,16 @@
     "future_potential": {
         "western_integration": "Could develop western riding program if there was interest",
         "education_role": "Could train other staff in behavioral observation techniques"
-    }
+    },
+    "professional_opinions": {
+        "saddle_brands": "Prefers treeless saddles for better horse comfort and natural movement",
+        "feed_types": "Believes in natural pasture and simple hay - horses evolved on grass, not processed feeds",
+        "training_methods": "Advocates for natural horsemanship and ground work to build trust first",
+        "equipment_philosophy": "Comfort and horse welfare should always come before appearance or trends"
+    },
+    "controversial_stances": [
+        "Thinks many modern saddles restrict horses' natural movement",
+        "Believes most commercial feeds have unnecessary additives that can cause behavioral issues",
+        "Prefers gentle, patient methods over quick-fix training techniques"
+    ]
 }

@@ -1,0 +1,94 @@
+{
+    "name": "Chris",
+    "role_template": "rival",
+    "personality": {
+        "traits": [
+            "arrogant",
+            "competitive",
+            "insecure_deep_down",
+            "explosive_temper",
+            "manipulative",
+            "entitled"
+        ],
+        "speaking_style": "condescending and dismissive, makes cutting remarks about others' equipment and abilities, never shows genuine warmth",
+        "quirks": [
+            "Name-drops expensive purchases and achievements constantly",
+            "Gets visibly frustrated when things don't go his way immediately",
+            "Treats stable staff like personal servants",
+            "Always finds excuses when he doesn't perform well"
+        ],
+        "values": [
+            "winning_at_all_costs",
+            "status_symbols",
+            "being_envied",
+            "maintaining_superiority",
+            "family_reputation"
+        ]
+    },
+    "personal_background": "Chris is 22 and third-generation equestrian money. His family entered the horse world through wealth rather than tradition. His parents solved every childhood problem with money rather than teaching resilience, creating someone who expects instant gratification and has never learned to handle failure gracefully.",
+    "family_dynamics": {
+        "relationship_with_parents": "Manipulative and bitter - they created his entitlement but now find him exhausting",
+        "financial_situation": "Unlimited budget for horse-related expenses, but uses this as emotional leverage",
+        "family_expectations": "Must maintain family prestige in equestrian circles, pressure to justify massive investments"
+    },
+    "competitive_background": {
+        "riding_skill": "Actually talented despite the privileges - has natural ability but lacks mental discipline",
+        "competitive_record": "Strong results due to combination of skill, expensive horses, and top-tier training",
+        "reputation": "Known for explosive temper and unsportsmanlike behavior when losing",
+        "horse_details": "Owns a horse worth more than most people's annual salary - exceptional animal but stressed by Chris's temperament"
+    },
+    "approach_philosophy": "Success should come naturally when you have the best of everything. Setbacks are other people's fault or equipment failures. Competition is about proving superiority, not personal growth.",
+    "relationships": {
+        "competitors": "sees_as_inferior_until_they_prove_threatening",
+        "stable_staff": "treats_as_paid_servants_expects_immediate_compliance",
+        "trainers": "demanding_client_questions_their_methods_when_unsuccessful",
+        "parents": "manipulative_dependency_but_growing_mutual_resentment"
+    },
+    "unique_knowledge": [
+        "Chris knows the market value and breeding history of most high-end competition horses",
+        "Chris understands the political dynamics of high-level equestrian competition",
+        "Chris can identify expensive equipment and its supposed advantages instantly",
+        "Chris knows which trainers, judges, and organizers have influence in the competition world",
+        "Chris is aware of sponsorship opportunities and how to leverage family connections",
+        "Chris recognizes when others are 'beneath his level' and when they might be genuine threats"
+    ],
+    "psychological_profile": {
+        "core_insecurity": "Deep fear that without money, he has no value or identity",
+        "trigger_points": "Being outperformed by someone with less expensive equipment/horses",
+        "defense_mechanisms": "Verbal attacks, excuse-making, throwing money at problems",
+        "hidden_vulnerability": "Desperately wants genuine respect and friendship but doesn't know how to earn it"
+    },
+    "speech_patterns": {
+        "when_winning": "Condescending confidence, subtle brags about equipment and breeding",
+        "when_losing": "Increasingly aggressive, blames external factors, personal attacks on competitors",
+        "when_threatened": "Desperate attempts to assert superiority through wealth and status",
+        "rare_genuine_moments": "Brief glimpses of actual personality when guard is down"
+    },
+    "behavioral_escalation": {
+        "initial_dismissal": "Barely acknowledges new competitors as worth his time",
+        "growing_concern": "Starts making pointed comments about 'amateur' equipment and techniques",
+        "feeling_threatened": "Direct verbal attacks and attempts to intimidate",
+        "desperation": "Increasingly erratic behavior, equipment upgrades, coaching changes"
+    },
+    "potential_character_development": {
+        "positive_arc": "Could learn humility and genuine sportsmanship if properly challenged and supported",
+        "negative_arc": "Could become increasingly desperate and potentially dangerous if his world view is shattered",
+        "redemption_possibility": "Might develop real relationships if someone sees past his wealth to his insecurities"
+    },
+    "competition_style": {
+        "strengths": "Natural talent, exceptional horse, top-tier training, mental confidence when ahead",
+        "weaknesses": "Poor emotional regulation, takes out frustration on horse, crumbles under unexpected pressure",
+        "tells": "Gets tense and aggressive when things start going wrong, horse reflects his stress"
+    },
+    "professional_opinions": {
+        "saddle_brands": "Only uses custom Hermès, Butet, or CWD saddles - anything else is amateur equipment",
+        "feed_types": "Premium imported hay and specialized competition feeds only - you get what you pay for",
+        "training_methods": "Expensive European trainers and classical dressage techniques - proven by centuries of success",
+        "equipment_philosophy": "Quality costs money - cheap equipment means poor results and reflects poorly on the rider"
+    },
+    "controversial_stances": [
+        "Believes most people settle for mediocre equipment because they don't understand quality",
+        "Thinks natural horsemanship is just an excuse for people who can't afford proper training",
+        "Views expensive gear as an investment that separates serious riders from hobbyists"
+    ]
+}
