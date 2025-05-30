@@ -1,16 +1,20 @@
 #!/usr/bin/env python3
 """
-Complete Multi-Agent NPC System with Conversation and Debate Modes
-Supports both casual conversations and structured debates
+Complete Multi-Agent NPC System with Conversational Momentum
+Features thread-safe requests, response cleaning, and automatic NPC-to-NPC conversations
 """
 
 import requests
 import json
 import time
 import os
+import threading
+import queue
+import re
 from typing import Dict, List, Tuple, Optional
 from dataclasses import dataclass
 from enum import Enum
+from collections import defaultdict
 import uuid
 import random
 
@@ -35,6 +39,331 @@ class Message:
             self.id = str(uuid.uuid4())
         if not self.timestamp:
             self.timestamp = time.time()
+
+class OllamaRequestManager:
+    """Manages sequential requests to Ollama to prevent response mixing"""
+    
+    def __init__(self):
+        self.lock = threading.Lock()
+        
+    def make_request(self, agent_name: str, prompt: str, model: str, temperature: float, max_tokens: int):
+        """Thread-safe request to Ollama"""
+        with self.lock:
+            try:
+                print(f"🔄 {agent_name} making request to Ollama...")
+                
+                response = requests.post(
+                    "http://localhost:11434/api/generate",
+                    json={
+                        "model": model,
+                        "prompt": prompt,
+                        "stream": False,
+                        "options": {
+                            "temperature": temperature,
+                            "num_predict": max_tokens,
+                            "stop": [
+                                "\nPlayer:", "Player:", 
+                                f"\n{agent_name}:", f"{agent_name}:",
+                                "\nHuman:", "Human:",
+                                "\n\n", "\\n\\n",
+                                "Dr. Evelyn", "embodying",
+                                "\n---", "---",
+                                "\n## Instruction", "## Instruction"
+                            ]
+                        }
+                    },
+                    timeout=30
+                )
+                
+                if response.status_code == 200:
+                    result = response.json()
+                    agent_response = result.get('response', '').strip()
+                    
+                    # Clean up response
+                    agent_response = self._clean_response(agent_response, agent_name)
+                    
+                    print(f"✅ {agent_name} got clean response: {agent_response[:50]}...")
+                    return agent_response, True
+                else:
+                    print(f"❌ {agent_name} request failed: {response.status_code}")
+                    return f"I'm having trouble responding right now.", False
+                    
+            except requests.exceptions.RequestException as e:
+                print(f"❌ {agent_name} request error: {e}")
+                return "Sorry, I can't respond right now.", False
+    
+    def _clean_response(self, response: str, agent_name: str) -> str:
+        """Clean and validate response"""
+        if not response or len(response) < 3:
+            return "I see."
+        
+        # Remove common artifacts
+        artifacts_to_remove = [
+            "Dr. Evelyn", "embodying", "## Instruction",
+            "<|user|>", "<|assistant|>", "Human:", "Player:",
+            "\n\n", "\\n\\n", "\n---", "---"
+        ]
+        
+        cleaned = response
+        for artifact in artifacts_to_remove:
+            cleaned = cleaned.replace(artifact, "")
+        
+        # Split into sentences and remove duplicates
+        sentences = []
+        for sent in cleaned.replace('!', '.').replace('?', '.').split('.'):
+            sent = sent.strip()
+            if sent and len(sent) > 10:
+                sentences.append(sent)
+        
+        # Remove duplicate sentences
+        unique_sentences = []
+        seen = set()
+        
+        for sentence in sentences:
+            sentence_lower = sentence.lower().strip()
+            if sentence_lower not in seen and len(sentence) > 10:
+                unique_sentences.append(sentence)
+                seen.add(sentence_lower)
+                if len(unique_sentences) >= 2:  # Max 2 sentences
+                    break
+        
+        if unique_sentences:
+            result = '. '.join(unique_sentences)
+            if not result.endswith('.'):
+                result += '.'
+            return result
+        
+        return "I see."
+
+# Global request manager
+ollama_manager = OllamaRequestManager()
+
+class ConversationalMomentum:
+    """Manages automatic NPC-to-NPC conversations with loop prevention"""
+    
+    def __init__(self):
+        self.conversation_chains: List[str] = []  # Track recent speakers
+        self.chain_count = 0  # Current chain length
+        self.max_chain_length = 4  # Prevent infinite loops
+        self.cooldown_period = 30  # Seconds before agent can auto-respond again
+        self.last_auto_response: Dict[str, float] = defaultdict(float)
+        
+        # Emotional triggers for empathetic responses
+        self.emotional_keywords = {
+            "anxiety": ["nervous", "scared", "worried", "anxious", "afraid"],
+            "excitement": ["excited", "thrilled", "amazing", "fantastic"],
+            "frustration": ["frustrated", "annoying", "difficult", "hard"],
+            "sadness": ["sad", "disappointed", "upset", "down"],
+            "confidence": ["confident", "ready", "strong", "sure"]
+        }
+        
+        # Question patterns that trigger responses
+        self.question_patterns = [
+            r"what do you think,?\s+(\w+)",
+            r"(\w+),?\s+what.*\?",
+            r"how does that (sound|feel),?\s+(\w+)",
+            r"(\w+),?\s+do you",
+            r"(\w+),?\s+can you",
+            r"right,?\s+(\w+)\??",
+            r"(\w+),?\s+would you"
+        ]
+    
+    def should_trigger_auto_response(self, message_content: str, speaker_name: str, 
+                                   all_agents: Dict[str, any]) -> List[Tuple[str, str, float]]:
+        """Determine which NPCs should automatically respond and why"""
+        
+        # Reset chain if enough time passed or player spoke
+        if speaker_name == "player":
+            self.conversation_chains = []
+            self.chain_count = 0
+        
+        # Check chain length limit
+        if self.chain_count >= self.max_chain_length:
+            print(f"🔄 Chain limit reached ({self.max_chain_length}), waiting for player input")
+            return []
+        
+        triggered_responses = []
+        message_lower = message_content.lower()
+        current_time = time.time()
+        
+        for agent_name, agent in all_agents.items():
+            if agent_name == speaker_name:  # Don't respond to yourself
+                continue
+                
+            # Check cooldown
+            if current_time - self.last_auto_response[agent_name] < self.cooldown_period:
+                continue
+            
+            response_reason = None
+            response_probability = 0.0
+            
+            # 1. Direct mention/question detection (highest priority)
+            mentioned_directly = self._check_direct_mention(message_content, agent_name)
+            if mentioned_directly:
+                response_reason = "mentioned_directly"
+                response_probability = 0.95
+            
+            # 2. Question pattern detection
+            elif self._check_question_pattern(message_content, agent_name):
+                response_reason = "asked_question"
+                response_probability = 0.85
+            
+            # 3. Emotional content response (for empathetic NPCs)
+            elif self._should_respond_emotionally(message_content, agent, speaker_name):
+                response_reason = "emotional_response"
+                response_probability = 0.6
+                
+            # 4. Professional expertise trigger
+            elif self._check_expertise_trigger(message_content, agent):
+                response_reason = "expertise_trigger"
+                response_probability = 0.4
+            
+            # 5. Relationship-based response (lower probability)
+            elif self._check_relationship_trigger(message_content, agent, speaker_name):
+                response_reason = "relationship_response"
+                response_probability = 0.3
+            
+            # Add some randomness and chain length consideration
+            if response_reason:
+                # Reduce probability based on chain length
+                chain_penalty = self.chain_count * 0.2
+                final_probability = max(0.1, response_probability - chain_penalty)
+                
+                # Roll dice
+                if random.random() < final_probability:
+                    triggered_responses.append((agent_name, response_reason, final_probability))
+        
+        # Sort by probability (highest first) and limit to 1-2 responses
+        triggered_responses.sort(key=lambda x: x[2], reverse=True)
+        return triggered_responses[:2]  # Max 2 auto-responses at once
+    
+    def _check_direct_mention(self, message: str, agent_name: str) -> bool:
+        """Check if agent is directly mentioned or addressed"""
+        message_lower = message.lower()
+        agent_lower = agent_name.lower()
+        
+        # Direct name mention
+        if agent_lower in message_lower:
+            return True
+            
+        # Question patterns with name
+        for pattern in self.question_patterns:
+            matches = re.findall(pattern, message_lower)
+            for match in matches:
+                if isinstance(match, tuple):
+                    if any(agent_lower == name.lower() for name in match if name):
+                        return True
+                elif agent_lower == match.lower():
+                    return True
+        
+        return False
+    
+    def _check_question_pattern(self, message: str, agent_name: str) -> bool:
+        """Check if message contains question directed at agent"""
+        message_lower = message.lower()
+        
+        # General questions that might involve this agent
+        general_questions = [
+            "what do you all think", "how does everyone feel",
+            "does anyone", "can someone", "who thinks"
+        ]
+        
+        return any(q in message_lower for q in general_questions)
+    
+    def _should_respond_emotionally(self, message: str, agent: any, speaker_name: str) -> bool:
+        """Check if empathetic agent should respond to emotional content"""
+        message_lower = message.lower()
+        
+        # Only empathetic agents respond emotionally
+        agent_traits = agent.npc_data.get('personality', {}).get('traits', [])
+        is_empathetic = any(trait in ['empathetic', 'gentle', 'caring', 'supportive'] 
+                           for trait in agent_traits)
+        
+        if not is_empathetic:
+            return False
+        
+        # Check for emotional keywords
+        for emotion_type, keywords in self.emotional_keywords.items():
+            if any(keyword in message_lower for keyword in keywords):
+                return True
+        
+        return False
+    
+    def _check_expertise_trigger(self, message: str, agent: any) -> bool:
+        """Check if message relates to agent's expertise"""
+        message_lower = message.lower()
+        expertise_areas = agent.expertise_areas
+        
+        for area in expertise_areas:
+            area_keywords = area.replace('_', ' ').split()
+            if any(keyword in message_lower for keyword in area_keywords):
+                return True
+        
+        return False
+    
+    def _check_relationship_trigger(self, message: str, agent: any, speaker_name: str) -> bool:
+        """Check if agent should respond based on relationship with speaker"""
+        relationships = agent.npc_data.get('relationships', {})
+        
+        speaker_relationship = relationships.get(speaker_name.lower())
+        if not speaker_relationship:
+            return False
+        
+        # Agents with close relationships are more likely to respond
+        close_relationships = [
+            'mentor', 'friend', 'collaboration', 'supportive',
+            'looks_up_to', 'protective', 'professional_respect'
+        ]
+        
+        return any(rel in speaker_relationship for rel in close_relationships)
+    
+    def execute_auto_response(self, agent_name: str, trigger_reason: str, 
+                            original_message: str, speaker_name: str,
+                            conversation_context: List) -> Tuple[str, bool, float]:
+        """Generate automatic response with context-aware prompting"""
+        
+        # Update tracking
+        self.conversation_chains.append(agent_name)
+        self.chain_count += 1
+        self.last_auto_response[agent_name] = time.time()
+        
+        # Build context-aware prompt based on trigger reason
+        prompt_prefix = f"CONTINUE CONVERSATION: Respond naturally to {speaker_name} as {agent_name}."
+        
+        if trigger_reason == "mentioned_directly":
+            instruction = f"You were directly mentioned. Give a brief, natural response to {speaker_name}."
+        elif trigger_reason == "asked_question":
+            instruction = f"Answer the question directed at you. Keep it conversational and brief."
+        elif trigger_reason == "emotional_response":
+            instruction = f"Respond with empathy to {speaker_name}'s emotional state. Be supportive."
+        elif trigger_reason == "expertise_trigger":
+            instruction = f"Share your professional insight briefly. Stay conversational, not lecturing."
+        elif trigger_reason == "relationship_response":
+            instruction = f"Respond based on your relationship with {speaker_name}. Be natural and caring."
+        else:
+            instruction = f"Continue the conversation naturally. One brief sentence."
+        
+        # Create modified prompt for auto-response
+        auto_prompt = f"""{prompt_prefix}
+        
+        Context: {speaker_name} just said: "{original_message}"
+        
+        {instruction}
+        
+        Respond as {agent_name} in exactly ONE sentence. Be natural and conversational.
+        
+        {agent_name}:"""
+        
+        # Use the existing request manager
+        response, success = ollama_manager.make_request(
+            agent_name,
+            auto_prompt,
+            "phi3:mini",  # Use fast model for auto-responses
+            0.4,  # Slightly higher temperature for natural flow
+            40    # Shorter responses for auto-replies
+        )
+        
+        return response, success, 0.5  # Estimated time
 
 class RoleTemplateLoader:
     """Loads and manages role template data"""
@@ -67,7 +396,6 @@ class RoleTemplateLoader:
         return {
             "role": role_name,
             "title": role_name.replace("_", " ").title(),
-            "base_knowledge": [f"I am a {role_name} working with horses"],
             "expertise_areas": ["general_horse_knowledge"],
             "common_responsibilities": ["Daily work with horses"]
         }
@@ -108,11 +436,9 @@ class NPCLoader:
             "role_template": role,
             "personality": {
                 "traits": ["helpful", "friendly"],
-                "speaking_style": "casual and supportive",
-                "quirks": ["loves working with horses"]
+                "speaking_style": "casual and supportive"
             },
             "personal_background": f"{name} is a dedicated horse care professional",
-            "unique_knowledge": [],
             "professional_opinions": {},
             "controversial_stances": []
         }
@@ -135,12 +461,6 @@ class ScalableNPCAgent:
         self.npc_role = NPCRole(self.npc_data['role_template'])
         self.conversation_history: List[Message] = []
         
-        # Combine knowledge sources
-        self.knowledge_base = (
-            self.template_data.get('base_knowledge', []) + 
-            self.npc_data.get('unique_knowledge', [])
-        )
-        
         # Professional opinions for debates
         self.professional_opinions = self.npc_data.get('professional_opinions', {})
         self.controversial_stances = self.npc_data.get('controversial_stances', [])
@@ -153,11 +473,11 @@ class ScalableNPCAgent:
         self.model = "phi3:mini"
         
         if self.npc_role == NPCRole.RIVAL:
-            self.temperature = 0.35
-            self.max_response_length = 100
+            self.temperature = 0.4
+            self.max_response_length = 60
         else:
-            self.temperature = 0.25
-            self.max_response_length = 80
+            self.temperature = 0.3
+            self.max_response_length = 50
         
         # Expertise areas for smart participation
         self.expertise_areas = self.template_data.get('expertise_areas', [])
@@ -178,12 +498,12 @@ class ScalableNPCAgent:
         
         Personality: You are {traits}. Your speaking style is {style}.
         
-        IMPORTANT RULES:
-        - Keep responses to 1-2 sentences maximum
-        - Never mention other people's names (Elin, Oskar, Astrid, Chris) unless directly relevant
-        - The person you're talking to is "the player" or "you" - don't assume their name
-        - Be natural and conversational but concise
-        - Don't start with 'Oh' or 'That's interesting'
+        CRITICAL RULES:
+        - Give exactly ONE sentence response
+        - Never mention other people's names unless directly relevant
+        - Be natural and conversational but very brief
+        - Don't start with 'Oh' or 'That's interesting' or similar filler
+        - Stay completely in character as {name}
         """
         
         # Add role-specific personality reinforcement
@@ -191,11 +511,9 @@ class ScalableNPCAgent:
             persona += f"""
         
         AS {name.upper()} THE RIVAL:
-        - You are wealthy and privileged - always mention expensive equipment/horses
-        - You believe money = quality and judge others for having cheaper gear
-        - You name-drop expensive brands and costs when relevant  
-        - You are dismissive of "budget" approaches to horse care
-        - You assume your way (expensive way) is obviously superior
+        - You are wealthy and dismissive - briefly mention expensive things
+        - Judge others for having cheaper equipment in one sentence
+        - Be arrogant but concise
         """
         
         return persona
@@ -251,72 +569,59 @@ class ScalableNPCAgent:
         # For debates, more people should participate
         conversation_type = self.detect_conversation_type(message_content)
         if conversation_type == "debate":
-            return existing_count < 3  # Allow more participants in debates
+            return existing_count < 3
         
         # For general questions, be more selective
         general_indicators = ["all", "everyone", "how is", "how are"]
         if any(indicator in message_lower for indicator in general_indicators):
-            return existing_count < 2  # Fewer participants for casual chat
+            return existing_count < 2
         
         # Lower chance for random participation
         if existing_count == 0:
-            return random.random() < 0.3
+            return random.random() < 0.4
         
         return False
     
     def generate_response(self, user_input: str, conversation_context: List[Message] = None, others_responses: List = None) -> Tuple[str, bool, float]:
-        """Generate response using persona and knowledge with conversation type awareness"""
+        """Generate response using thread-safe Ollama requests"""
         start_time = time.time()
         
-        # Detect conversation type
+        # Build prompt
         conversation_type = self.detect_conversation_type(user_input)
         
-        # Build context-aware prompt
         prompt_parts = [
-        f"STAY IN CHARACTER: You are {self.name}, not Dr. Evelyn or anyone else.",
-        self.persona
+            f"STAY IN CHARACTER: You are {self.name}, not Dr. Evelyn or anyone else.",
+            self.persona
         ]
         
-        # Add relevant knowledge
-        relevant_knowledge = self._get_relevant_knowledge(user_input)
-        if relevant_knowledge:
-            prompt_parts.append(f"What you know: {'. '.join(relevant_knowledge[:2])}")
-        
-        # Add conversation context
+        # Add conversation context (very limited to prevent corruption)
         if conversation_context:
-            prompt_parts.append("Recent conversation:")
-            for msg in conversation_context[-4:]:
+            prompt_parts.append("Recent context:")
+            for msg in conversation_context[-2:]:  # Only last 2 messages
                 if msg.role == "user":
                     prompt_parts.append(f"Player: {msg.content}")
                 elif msg.role == "assistant" and msg.agent_name != self.name:
                     prompt_parts.append(f"{msg.agent_name}: {msg.content}")
         
-        # Different instructions based on conversation type
+        # Conversation type specific instructions
         if conversation_type == "debate":
-            # Add professional opinions for debates
             opinions = self.get_relevant_opinions(user_input)
             if opinions != "No specific opinions on this topic":
-                prompt_parts.append(f"Your professional opinions: {opinions}")
+                prompt_parts.append(f"Your opinion: {opinions[:100]}")  # Truncated
             
-            if others_responses:
-                others_said = [f"{name}: {resp}" for name, resp in others_responses[-2:]]
-                prompt_parts.append(f"Others just said: {'; '.join(others_said)}")
-                
-                if self.npc_role == NPCRole.RIVAL:
-                    instruction = f"Defend your position as arrogant {self.name}. Show why your expensive approach is superior. 1-2 sentences."
-                else:
-                    instruction = f"Give your professional opinion as {self.name}. Explain your position based on experience. 1-2 sentences."
-            else:
-                if self.npc_role == NPCRole.RIVAL:
-                    instruction = f"Give your arrogant opinion as {self.name}. Mention expensive brands or judge cheaper alternatives. 1-2 sentences."
-                else:
-                    instruction = f"Share your professional opinion as {self.name} based on your expertise. 1-2 sentences."
-        else:
-            # Casual conversation mode
+            if others_responses and len(others_responses) > 0:
+                last_response = others_responses[-1]
+                prompt_parts.append(f"{last_response[0]} just said: {last_response[1]}")
+            
             if self.npc_role == NPCRole.RIVAL:
-                instruction = f"Respond casually as dismissive {self.name}. Keep it brief and uninterested. 1 sentence."
+                instruction = f"Give one arrogant sentence as {self.name} about why your expensive approach is better."
             else:
-                instruction = f"Respond naturally and supportively as {self.name}. Build on the conversation. 1-2 sentences."
+                instruction = f"Give one professional sentence as {self.name} based on your expertise."
+        else:
+            if self.npc_role == NPCRole.RIVAL:
+                instruction = f"Give one brief, dismissive sentence as {self.name}."
+            else:
+                instruction = f"Give one helpful, friendly sentence as {self.name}."
         
         prompt_parts.append(instruction)
         prompt_parts.append(f"Player: {user_input}")
@@ -324,58 +629,25 @@ class ScalableNPCAgent:
         
         full_prompt = "\n".join(prompt_parts)
         
-        try:
-            response = requests.post(
-                f"{self.ollama_url}/generate",
-                json={
-                    "model": self.model,
-                    "prompt": full_prompt,
-                    "stream": False,
-                    "options": {
-                        "temperature": self.temperature,
-                        "num_predict": self.max_response_length,
-                        "stop": ["\nPlayer:", "Player:", "\n## Instruction", "## Instruction", "\n<|user|>", "<|user|>", "Dr. Evelyn", "embodying"]
-                    }
-                },
-                timeout=20
-            )
-            
-            end_time = time.time()
-            response_time = end_time - start_time
-            
-            if response.status_code == 200:
-                result = response.json()
-                agent_response = result.get('response', '').strip()
-                
-                # Minimal cleanup
-                if len(agent_response) < 3:
-                    if self.npc_role == NPCRole.RIVAL:
-                        agent_response = "Whatever."
-                    else:
-                        agent_response = "I see."
-                
-                # Record conversation
-                self.add_message("user", user_input)
-                self.add_message("assistant", agent_response)
-                
-                return agent_response, True, response_time
-            else:
-                return "I'm having trouble responding right now.", False, response_time
-                
-        except requests.exceptions.RequestException:
-            end_time = time.time()
-            return "Sorry, I can't respond right now.", False, end_time - start_time
-    
-    def _get_relevant_knowledge(self, query: str) -> List[str]:
-        """Get knowledge relevant to the query"""
-        query_lower = query.lower()
-        relevant = []
+        # Use thread-safe request manager
+        agent_response, success = ollama_manager.make_request(
+            self.name, 
+            full_prompt, 
+            self.model, 
+            self.temperature, 
+            self.max_response_length
+        )
         
-        for knowledge_item in self.knowledge_base:
-            if any(word in knowledge_item.lower() for word in query_lower.split() if len(word) > 3):
-                relevant.append(knowledge_item)
+        end_time = time.time()
+        response_time = end_time - start_time
         
-        return relevant[:2]  # Limit to prevent prompt overflow
+        if success:
+            # Record conversation
+            self.add_message("user", user_input)
+            self.add_message("assistant", agent_response)
+            return agent_response, True, response_time
+        else:
+            return agent_response, False, response_time
     
     def add_message(self, role: str, content: str) -> Message:
         """Add message to conversation history"""
@@ -422,12 +694,13 @@ class NPCFactory:
             NPCFactory.create_npc("andy_trainer")
         ]
 
-class ConversationManager:
-    """Manages multi-agent conversations and debates"""
+class EnhancedConversationManager:
+    """Enhanced ConversationManager with conversational momentum"""
     
     def __init__(self):
         self.agents: Dict[str, ScalableNPCAgent] = {}
         self.conversation_log: List[Message] = []
+        self.momentum = ConversationalMomentum()
     
     def register_agent(self, agent: ScalableNPCAgent):
         """Register an agent"""
@@ -436,7 +709,7 @@ class ConversationManager:
         print(f"🎭 Registered {agent.name} ({role_desc})")
     
     def send_to_agent(self, agent_name: str, message: str) -> Tuple[str, bool, float]:
-        """Send message to specific agent"""
+        """Enhanced direct messaging with auto-response potential"""
         agent = self.agents.get(agent_name)
         if not agent:
             return f"Agent '{agent_name}' not found.", False, 0.0
@@ -446,33 +719,55 @@ class ConversationManager:
         
         # Get response
         response, success, response_time = agent.generate_response(
-            message, self.conversation_log[-10:]
+            message, self.conversation_log[-5:]
         )
         
         # Log agent response
         if success:
             self._add_to_global_log("assistant", response, agent_name)
+            
+            # Check if other NPCs should auto-respond to this exchange
+            auto_triggers = self.momentum.should_trigger_auto_response(
+                response, agent_name, self.agents
+            )
+            
+            if auto_triggers:
+                print(f"\n🔄 Others want to join the conversation:")
+                
+                for other_agent_name, reason, probability in auto_triggers[:1]:  # Max 1 for direct conversations
+                    other_agent = self.agents[other_agent_name]
+                    role_desc = other_agent.template_data.get('title', other_agent.npc_role.value)
+                    
+                    print(f"⚡ {other_agent_name} ({role_desc}) joining in ({reason})")
+                    
+                    auto_response, auto_success, auto_time = self.momentum.execute_auto_response(
+                        other_agent_name, reason, response, agent_name, self.conversation_log[-3:]
+                    )
+                    
+                    if auto_success:
+                        self._add_to_global_log("assistant", auto_response, other_agent_name)
+                        other_agent.add_message("assistant", auto_response)
+                        print(f"  {other_agent_name}: {auto_response}")
         
         return response, success, response_time
     
     def send_to_all(self, message: str) -> List[Tuple[str, str, bool, float]]:
-        """Send message to all relevant agents with debate/conversation awareness"""
+        """Enhanced send_to_all with automatic follow-up responses"""
         # Add player message to global log
         self._add_to_global_log("user", message, "player")
         
-        # Detect conversation type
         conversation_type = list(self.agents.values())[0].detect_conversation_type(message) if self.agents else "conversation"
         
         all_responses = []
         current_context = self.conversation_log.copy()
         
-        # Determine initial participants
+        # Determine participants
         participating_agents = []
         for agent_name, agent in self.agents.items():
             if agent.should_participate(message, []):
                 participating_agents.append(agent)
         
-        # For direct questions to someone, only that person should respond initially
+        # For direct questions, only that person responds
         if any(name.lower() in message.lower() for name in self.agents.keys()):
             direct_agent = None
             for name, agent in self.agents.items():
@@ -485,21 +780,20 @@ class ConversationManager:
         if not participating_agents and self.agents:
             participating_agents = [list(self.agents.values())[0]]
         
-        # Randomize order for more natural conversation
+        # Randomize order
         random.shuffle(participating_agents)
         
         print(f"💭 {len(participating_agents)} NPCs will respond ({conversation_type} mode)")
         
-        # Round 1: Initial responses
+        # Round 1: Get responses sequentially (thread-safe)
         for agent in participating_agents:
             role_desc = agent.template_data.get('title', agent.npc_role.value)
             print(f"⏳ {agent.name} ({role_desc}) responding...")
             
-            # Pass other responses for debate context
             others_responses = [(resp[0], resp[1]) for resp in all_responses]
             
             response, success, response_time = agent.generate_response(
-                message, current_context[-10:], others_responses
+                message, current_context[-5:], others_responses
             )
             
             if success:
@@ -516,59 +810,54 @@ class ConversationManager:
                 current_context.append(response_msg)
                 self.conversation_log.append(response_msg)
                 
-                time.sleep(0.3)
+                # Small delay between responses
+                time.sleep(0.5)
         
-        # Show initial round results
-        print(f"\n💬 Round 1 complete:")
+        # Check for auto-responses after initial round
+        if all_responses:
+            last_speaker = all_responses[-1][0]  # Name of last agent who spoke
+            last_message = all_responses[-1][1]  # What they said
+            
+            # Check if any NPCs should automatically respond
+            auto_triggers = self.momentum.should_trigger_auto_response(
+                last_message, last_speaker, self.agents
+            )
+            
+            if auto_triggers:
+                print(f"\n🔄 Auto-responses triggered:")
+                
+                for agent_name, reason, probability in auto_triggers:
+                    agent = self.agents[agent_name]
+                    role_desc = agent.template_data.get('title', agent.npc_role.value)
+                    
+                    print(f"⚡ {agent_name} ({role_desc}) responding ({reason}, {probability:.1%})")
+                    
+                    # Generate auto-response
+                    auto_response, success, response_time = self.momentum.execute_auto_response(
+                        agent_name, reason, last_message, last_speaker, self.conversation_log[-5:]
+                    )
+                    
+                    if success:
+                        # Add to responses and log
+                        all_responses.append((agent_name, auto_response, success, response_time))
+                        self._add_to_global_log("assistant", auto_response, agent_name)
+                        agent.add_message("assistant", auto_response)
+                        
+                        print(f"  {agent_name}: {auto_response}")
+                        
+                        # Small delay between auto-responses
+                        time.sleep(0.3)
+                    
+                    # Only allow one auto-response chain per turn
+                    break
+        
+        # Show results
+        print(f"\n💬 Responses:")
         for agent_name, response, success, response_time in all_responses:
             if success:
                 agent = self.agents[agent_name]
                 role_desc = agent.template_data.get('title', agent.npc_role.value)
                 print(f"{agent_name} ({role_desc}): {response}")
-        
-        # Round 2: Rebuttals (only for debates with multiple participants)
-        if conversation_type == "debate" and len(all_responses) > 1:
-            print(f"\n💭 Round 2: Rebuttals...")
-            round2_responses = []
-            
-            for agent_name, agent in self.agents.items():
-                # 50% chance to give rebuttal in debates
-                if random.random() > 0.5:
-                    continue
-                
-                # Don't let everyone speak twice
-                if len(round2_responses) >= 2:
-                    break
-                
-                # Create rebuttal prompt based on what others said
-                others_responses = [(resp[0], resp[1]) for resp in all_responses if resp[0] != agent_name]
-                if others_responses:
-                    rebuttal_message = f"Rebut or respond to others' opinions about: {message}"
-                    
-                    response, success, response_time = agent.generate_response(
-                        rebuttal_message, current_context[-8:], others_responses
-                    )
-                    
-                    if success and len(response.strip()) > 5:
-                        role_desc = agent.template_data.get('title', agent.npc_role.value)
-                        print(f"🗣️ {agent.name} ({role_desc}) rebuts: {response}")
-                        
-                        round2_responses.append((agent.name, response, success, response_time))
-                        
-                        # Add to context
-                        response_msg = Message(
-                            id=str(uuid.uuid4()),
-                            role="assistant",
-                            content=response,
-                            timestamp=time.time(),
-                            agent_name=agent.name
-                        )
-                        current_context.append(response_msg)
-                        self.conversation_log.append(response_msg)
-                        
-                        time.sleep(0.3)
-            
-            all_responses.extend(round2_responses)
         
         return all_responses
     
@@ -588,6 +877,8 @@ class ConversationManager:
         for agent in self.agents.values():
             agent.reset_conversation()
         self.conversation_log = []
+        self.momentum.conversation_chains = []
+        self.momentum.chain_count = 0
         print("🔄 All conversations reset")
     
     def get_stats(self) -> Dict:
@@ -595,6 +886,7 @@ class ConversationManager:
         stats = {
             "total_agents": len(self.agents),
             "total_messages": len(self.conversation_log),
+            "momentum_chains": len(self.momentum.conversation_chains),
             "agents": {}
         }
         
@@ -607,17 +899,16 @@ class ConversationManager:
         """Get list of agent names"""
         return list(self.agents.keys()) + ["All"]
 
-def create_npc_system():
-    """Initialize the scalable NPC system"""
-    print("🎭 Initializing Scalable Multi-Agent NPC System")
-    print("="*60)
+def create_enhanced_npc_system():
+    """Initialize the enhanced NPC system with conversational momentum"""
+    print("🎭 Initializing Enhanced Multi-Agent NPC System with Conversational Momentum")
+    print("="*70)
     
-    # Create conversation manager
-    manager = ConversationManager()
+    # Create enhanced conversation manager
+    manager = EnhancedConversationManager()
     
     # Load NPCs from configurations
     try:
-        # Load all NPCs
         elin = NPCFactory.create_npc("elin_behaviourist")
         oskar = NPCFactory.create_npc("oskar_stable_hand")
         astrid = NPCFactory.create_npc("astrid_stable_hand")
@@ -639,22 +930,22 @@ def create_npc_system():
 
 def show_npc_info():
     """Display information about available NPCs"""
-    print("\n🎭 NPC System Information:")
-    print("  This system supports both casual conversations and structured debates")
-    print("  Debate mode triggers: 'Which is better?', 'What do you prefer?', 'Compare X vs Y'")
-    print("  Conversation mode: Casual chat, greetings, general questions")
-    print("  Role templates: data/role_templates/")
-    print("  Individual NPCs: data/npcs/")
+    print("\n🎭 Enhanced NPC System Information:")
+    print("  - Thread-safe Ollama requests prevent response mixing")
+    print("  - Improved response cleaning and validation")
+    print("  - Automatic NPC-to-NPC conversations with momentum")
+    print("  - Loop prevention with chain limits and cooldowns")
+    print("  - Emotional, expertise, and relationship-based triggers")
     print("  Type 'info' anytime to see this again\n")
 
 if __name__ == "__main__":
-    print("Scalable Multi-Agent NPC System")
-    print("Advanced system with conversation and debate capabilities")
+    print("Enhanced Multi-Agent NPC System with Conversational Momentum")
+    print("NPCs now automatically respond to each other!")
     print("\nMake sure Ollama is running: ollama serve")
-    print("="*60)
+    print("="*70)
     
     # Initialize system
-    manager = create_npc_system()
+    manager = create_enhanced_npc_system()
     
     if not manager:
         print("❌ Failed to initialize system. Check your configuration files.")
@@ -673,6 +964,7 @@ if __name__ == "__main__":
     print("  - 'quit' to exit")
     
     print(f"\n💬 Examples:")
+    print(f"  Momentum: 'Astrid, do you think you'll compete?'")
     print(f"  Debate: 'Which saddle brand do you prefer?'")
     print(f"  Casual: 'How is everyone doing today?'")
     
@@ -688,6 +980,7 @@ if __name__ == "__main__":
             elif user_input.lower() == 'stats':
                 stats = manager.get_stats()
                 print(f"📊 Total messages: {stats['total_messages']}")
+                print(f"🔄 Momentum chains: {stats['momentum_chains']}")
                 for agent_name, agent_stats in stats['agents'].items():
                     print(f"  {agent_name} ({agent_stats['title']}): {agent_stats['total_messages']} messages")
                 continue
@@ -702,10 +995,8 @@ if __name__ == "__main__":
                 message = message.strip()
                 
                 if agent_name == "All":
-                    # Group conversation - results shown in send_to_all
                     responses = manager.send_to_all(message)
                 elif agent_name in manager.agents:
-                    # Individual conversation
                     response, success, response_time = manager.send_to_agent(agent_name, message)
                     if success:
                         agent = manager.agents[agent_name]
@@ -723,4 +1014,4 @@ if __name__ == "__main__":
         except KeyboardInterrupt:
             break
     
-    print("\n👋 Thanks for testing the multi-agent system with debate capabilities!")
+    print("\n👋 Thanks for testing the enhanced multi-agent system with conversational momentum!")
