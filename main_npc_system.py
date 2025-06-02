@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """
-Complete Multi-Agent NPC System with Conversational Momentum
-Features thread-safe requests, response cleaning, and automatic NPC-to-NPC conversations
+Complete Multi-Agent NPC System with Session Memory Integration
+Features realistic memory tracking, spatial awareness, and information propagation
+Enhanced with RAG (Retrieval-Augmented Generation) for domain-specific knowledge
 """
 
 import requests
@@ -18,6 +19,19 @@ from collections import defaultdict
 import uuid
 import random
 
+# Import the session memory system
+from memory.session_memory import MemoryManager, InformationSource, ConfidenceLevel
+
+# Import RAG system components
+try:
+    from src.agents.rag_enhanced_agent import create_rag_enhanced_agent, create_rag_enhanced_team
+    RAG_AVAILABLE = True
+    print("🔥 RAG system loaded successfully!")
+except ImportError as e:
+    RAG_AVAILABLE = False
+    print(f"⚠️  RAG system not available: {e}")
+    print("💡 Install RAG dependencies or run without RAG")
+
 class NPCRole(Enum):
     STABLE_HAND = "stable_hand"
     TRAINER = "trainer"
@@ -33,6 +47,7 @@ class Message:
     content: str
     timestamp: float
     agent_name: Optional[str] = None
+    location: Optional[str] = None  # NEW: Track where message was said
     
     def __post_init__(self):
         if not self.id:
@@ -141,11 +156,12 @@ ollama_manager = OllamaRequestManager()
 class ConversationalMomentum:
     """Manages automatic NPC-to-NPC conversations with loop prevention"""
     
-    def __init__(self):
-        self.conversation_chains: List[str] = []  # Track recent speakers
-        self.chain_count = 0  # Current chain length
-        self.max_chain_length = 4  # Prevent infinite loops
-        self.cooldown_period = 30  # Seconds before agent can auto-respond again
+    def __init__(self, memory_manager: MemoryManager):
+        self.memory_manager = memory_manager
+        self.conversation_chains: List[str] = []
+        self.chain_count = 0
+        self.max_chain_length = 4
+        self.cooldown_period = 30
         self.last_auto_response: Dict[str, float] = defaultdict(float)
         
         # Emotional triggers for empathetic responses
@@ -169,8 +185,8 @@ class ConversationalMomentum:
         ]
     
     def should_trigger_auto_response(self, message_content: str, speaker_name: str, 
-                                   all_agents: Dict[str, any]) -> List[Tuple[str, str, float]]:
-        """Determine which NPCs should automatically respond and why"""
+                                current_location: str, all_agents: Dict[str, any]) -> List[Tuple[str, str, float]]:
+        """Enhanced trigger detection using memory and spatial awareness"""
         
         # Reset chain if enough time passed or player spoke
         if speaker_name == "player":
@@ -187,7 +203,17 @@ class ConversationalMomentum:
         current_time = time.time()
         
         for agent_name, agent in all_agents.items():
-            if agent_name == speaker_name:  # Don't respond to yourself
+            if agent_name == speaker_name:
+                continue
+                
+            # Skip if agent not in same location (spatial awareness)
+            agent_memory = self.memory_manager.get_npc_memory(agent_name)
+            if not agent_memory:
+                continue
+                
+            # Check if agent can hear based on location
+            agent_location = self.memory_manager.spatial_awareness.npc_locations.get(agent_name)
+            if agent_location != current_location:
                 continue
                 
             # Check cooldown
@@ -208,17 +234,22 @@ class ConversationalMomentum:
                 response_reason = "asked_question"
                 response_probability = 0.85
             
-            # 3. Emotional content response (for empathetic NPCs)
+            # 3. NEW: Memory-triggered response (knows about topic)
+            elif self._check_memory_trigger(message_content, agent_name):
+                response_reason = "memory_trigger"
+                response_probability = 0.7
+            
+            # 4. Emotional content response
             elif self._should_respond_emotionally(message_content, agent, speaker_name):
                 response_reason = "emotional_response"
                 response_probability = 0.6
                 
-            # 4. Professional expertise trigger
+            # 5. Professional expertise trigger
             elif self._check_expertise_trigger(message_content, agent):
                 response_reason = "expertise_trigger"
                 response_probability = 0.4
             
-            # 5. Relationship-based response (lower probability)
+            # 6. Relationship-based response
             elif self._check_relationship_trigger(message_content, agent, speaker_name):
                 response_reason = "relationship_response"
                 response_probability = 0.3
@@ -235,18 +266,105 @@ class ConversationalMomentum:
         
         # Sort by probability (highest first) and limit to 1-2 responses
         triggered_responses.sort(key=lambda x: x[2], reverse=True)
-        return triggered_responses[:2]  # Max 2 auto-responses at once
+        return triggered_responses[:2]
     
+    def _check_memory_trigger(self, message: str, agent_name: str) -> bool:
+        """NEW: Check if agent has relevant memories about the topic"""
+        agent_memory = self.memory_manager.get_npc_memory(agent_name)
+        if not agent_memory:
+            return False
+        
+        # Extract key topics from message
+        message_words = [word.lower() for word in message.split() if len(word) > 3]
+        
+        for word in message_words:
+            if agent_memory.knows_about(word):
+                return True
+        
+        return False
+    
+    def execute_auto_response(self, agent_name: str, trigger_reason: str, 
+                            original_message: str, speaker_name: str,
+                            current_location: str, conversation_context: List) -> Tuple[str, bool, float]:
+        """Generate automatic response with memory context"""
+        
+        # Update tracking
+        self.conversation_chains.append(agent_name)
+        self.chain_count += 1
+        self.last_auto_response[agent_name] = time.time()
+        
+        # Build context-aware prompt with memory
+        memory_context = ""
+        agent_memory = self.memory_manager.get_npc_memory(agent_name)
+        if agent_memory:
+            # Get relevant memories
+            relevant_memories = self.memory_manager.get_relevant_context_for_npc(
+                agent_name, original_message, max_memories=2
+            )
+            if relevant_memories:
+                memory_context = f"Based on what you know: {'; '.join(relevant_memories)}. "
+        
+        if trigger_reason == "mentioned_directly":
+            instruction = f"You were directly mentioned by {speaker_name}. Give a brief, natural response."
+        elif trigger_reason == "asked_question":
+            instruction = f"Answer {speaker_name}'s question. Keep it conversational and brief."
+        elif trigger_reason == "memory_trigger":
+            instruction = f"Share what you know about this topic. Be conversational."
+        elif trigger_reason == "emotional_response":
+            instruction = f"Respond with empathy to {speaker_name}'s emotional state. Be supportive."
+        elif trigger_reason == "expertise_trigger":
+            instruction = f"Share your professional insight about what {speaker_name} said. Stay conversational."
+        elif trigger_reason == "relationship_response":
+            instruction = f"Respond to {speaker_name} based on your relationship with them. Be natural."
+        else:
+            instruction = f"Continue the conversation naturally with {speaker_name}. One brief sentence."
+        
+        # Enhanced prompt with memory context
+        auto_prompt = f"""CRITICAL: You are {agent_name}. Do NOT impersonate anyone else.
+
+{speaker_name} just said: "{original_message}"
+
+{memory_context}{instruction}
+
+RULES:
+- You are {agent_name}, not {speaker_name} or anyone else
+- Do not start your response with anyone's name
+- Give exactly ONE sentence as {agent_name}
+- Be natural and conversational
+
+{agent_name}:"""
+        
+        # Use the existing request manager
+        response, success = ollama_manager.make_request(
+            agent_name,
+            auto_prompt,
+            "phi3:mini",
+            0.3,
+            35
+        )
+        
+        # Record this conversation in memory
+        if success and agent_memory:
+            # Record that agent overheard this conversation
+            self.memory_manager.npc_tells_npc(
+                speaker_name, agent_name, 
+                f"conversation about: {original_message[:50]}...", 
+                current_location,
+                ConfidenceLevel.CONFIDENT,
+                ["conversation"]
+            )
+        
+        return response, success, 0.5
+    
+    # Keep existing helper methods but enhance them
     def _check_direct_mention(self, message: str, agent_name: str) -> bool:
         """Check if agent is directly mentioned or addressed"""
         message_lower = message.lower()
         agent_lower = agent_name.lower()
         
-        # Direct name mention
         if agent_lower in message_lower:
             return True
             
-        # Question patterns with name
         for pattern in self.question_patterns:
             matches = re.findall(pattern, message_lower)
             for match in matches:
@@ -262,7 +380,6 @@ class ConversationalMomentum:
         """Check if message contains question directed at agent"""
         message_lower = message.lower()
         
-        # General questions that might involve this agent
         general_questions = [
             "what do you all think", "how does everyone feel",
             "does anyone", "can someone", "who thinks"
@@ -274,7 +391,6 @@ class ConversationalMomentum:
         """Check if empathetic agent should respond to emotional content"""
         message_lower = message.lower()
         
-        # Only empathetic agents respond emotionally
         agent_traits = agent.npc_data.get('personality', {}).get('traits', [])
         is_empathetic = any(trait in ['empathetic', 'gentle', 'caring', 'supportive'] 
                            for trait in agent_traits)
@@ -282,7 +398,6 @@ class ConversationalMomentum:
         if not is_empathetic:
             return False
         
-        # Check for emotional keywords
         for emotion_type, keywords in self.emotional_keywords.items():
             if any(keyword in message_lower for keyword in keywords):
                 return True
@@ -309,61 +424,12 @@ class ConversationalMomentum:
         if not speaker_relationship:
             return False
         
-        # Agents with close relationships are more likely to respond
         close_relationships = [
             'mentor', 'friend', 'collaboration', 'supportive',
             'looks_up_to', 'protective', 'professional_respect'
         ]
         
         return any(rel in speaker_relationship for rel in close_relationships)
-    
-    def execute_auto_response(self, agent_name: str, trigger_reason: str, 
-                            original_message: str, speaker_name: str,
-                            conversation_context: List) -> Tuple[str, bool, float]:
-        """Generate automatic response with context-aware prompting"""
-        
-        # Update tracking
-        self.conversation_chains.append(agent_name)
-        self.chain_count += 1
-        self.last_auto_response[agent_name] = time.time()
-        
-        # Build context-aware prompt based on trigger reason
-        prompt_prefix = f"CONTINUE CONVERSATION: Respond naturally to {speaker_name} as {agent_name}."
-        
-        if trigger_reason == "mentioned_directly":
-            instruction = f"You were directly mentioned. Give a brief, natural response to {speaker_name}."
-        elif trigger_reason == "asked_question":
-            instruction = f"Answer the question directed at you. Keep it conversational and brief."
-        elif trigger_reason == "emotional_response":
-            instruction = f"Respond with empathy to {speaker_name}'s emotional state. Be supportive."
-        elif trigger_reason == "expertise_trigger":
-            instruction = f"Share your professional insight briefly. Stay conversational, not lecturing."
-        elif trigger_reason == "relationship_response":
-            instruction = f"Respond based on your relationship with {speaker_name}. Be natural and caring."
-        else:
-            instruction = f"Continue the conversation naturally. One brief sentence."
-        
-        # Create modified prompt for auto-response
-        auto_prompt = f"""{prompt_prefix}
-        
-        Context: {speaker_name} just said: "{original_message}"
-        
-        {instruction}
-        
-        Respond as {agent_name} in exactly ONE sentence. Be natural and conversational.
-        
-        {agent_name}:"""
-        
-        # Use the existing request manager
-        response, success = ollama_manager.make_request(
-            agent_name,
-            auto_prompt,
-            "phi3:mini",  # Use fast model for auto-responses
-            0.4,  # Slightly higher temperature for natural flow
-            40    # Shorter responses for auto-replies
-        )
-        
-        return response, success, 0.5  # Estimated time
 
 class RoleTemplateLoader:
     """Loads and manages role template data"""
@@ -444,9 +510,12 @@ class NPCLoader:
         }
 
 class ScalableNPCAgent:
-    """Enhanced NPC Agent with conversation and debate capabilities"""
+    """Enhanced NPC Agent with memory integration"""
     
-    def __init__(self, npc_config_name: str):
+    def __init__(self, npc_config_name: str, memory_manager: MemoryManager, current_location: str = "stable_yard"):
+        self.memory_manager = memory_manager
+        self.current_location = current_location
+        
         self.npc_loader = NPCLoader()
         self.template_loader = RoleTemplateLoader()
         
@@ -460,6 +529,9 @@ class ScalableNPCAgent:
         self.name = self.npc_data['name']
         self.npc_role = NPCRole(self.npc_data['role_template'])
         self.conversation_history: List[Message] = []
+        
+        # Register with memory manager
+        self.memory_manager.register_npc(self.name, current_location)
         
         # Professional opinions for debates
         self.professional_opinions = self.npc_data.get('professional_opinions', {})
@@ -482,7 +554,23 @@ class ScalableNPCAgent:
         # Expertise areas for smart participation
         self.expertise_areas = self.template_data.get('expertise_areas', [])
         
-        print(f"✅ Created {self.name} ({self.template_data.get('title', 'NPC')})")
+        print(f"✅ Created {self.name} ({self.template_data.get('title', 'NPC')}) at {current_location}")
+    
+    def move_to_location(self, new_location: str):
+        """Move NPC to a new location"""
+        old_location = self.current_location
+        self.current_location = new_location
+        self.memory_manager.update_npc_location(self.name, new_location)
+        
+        # Record movement in memory
+        self.memory_manager.record_witnessed_event(
+            f"{self.name} moved from {old_location} to {new_location}",
+            new_location,
+            [self.name],
+            ["movement", "location_change"]
+        )
+        
+        print(f"🚶 {self.name} moved to {new_location}")
     
     def _build_persona(self) -> str:
         """Build comprehensive persona from template + individual data"""
@@ -494,97 +582,38 @@ class ScalableNPCAgent:
         
         persona = f"""You are {name}, a {title} working at this horse stable.
         
-        Background: {background}
-        
-        Personality: You are {traits}. Your speaking style is {style}.
-        
-        CRITICAL RULES:
-        - Give exactly ONE sentence response
-        - Never mention other people's names unless directly relevant
-        - Be natural and conversational but very brief
-        - Don't start with 'Oh' or 'That's interesting' or similar filler
-        - Stay completely in character as {name}
-        """
+Background: {background}
+
+Personality: You are {traits}. Your speaking style is {style}.
+
+CRITICAL RULES:
+- Give exactly ONE sentence response
+- Never mention other people's names unless directly relevant
+- Be natural and conversational but very brief
+- Don't start with 'Oh' or 'That's interesting' or similar filler
+- Stay completely in character as {name}
+"""
         
         # Add role-specific personality reinforcement
         if self.npc_role == NPCRole.RIVAL:
             persona += f"""
-        
-        AS {name.upper()} THE RIVAL:
-        - You are wealthy and dismissive - briefly mention expensive things
-        - Judge others for having cheaper equipment in one sentence
-        - Be arrogant but concise
-        """
+
+AS {name.upper()} THE RIVAL:
+- You are wealthy and dismissive - briefly mention expensive things
+- Judge others for having cheaper equipment in one sentence
+- Be arrogant but concise
+"""
         
         return persona
     
-    def detect_conversation_type(self, message: str) -> str:
-        """Detect if this should be a debate or casual conversation"""
-        message_lower = message.lower()
-        
-        # Debate triggers
-        debate_triggers = ["better", "prefer", "best", "vs", "versus", "compare", "which", "what do you think about", "opinion"]
-        controversial_topics = ["saddle", "feed", "training", "method", "brand", "equipment", "technique", "hay", "silage", "grain"]
-        
-        is_debate_question = any(trigger in message_lower for trigger in debate_triggers)
-        has_controversial_topic = any(topic in message_lower for topic in controversial_topics)
-        
-        if is_debate_question and has_controversial_topic:
-            return "debate"
-        else:
-            return "conversation"
-    
-    def get_relevant_opinions(self, topic: str) -> str:
-        """Get relevant professional opinions for debate topics"""
-        topic_lower = topic.lower()
-        relevant_opinions = []
-        
-        # Match topics to opinions
-        for opinion_topic, opinion in self.professional_opinions.items():
-            if any(keyword in topic_lower for keyword in opinion_topic.split('_')):
-                relevant_opinions.append(f"{opinion_topic}: {opinion}")
-        
-        # Add controversial stances if relevant
-        for stance in self.controversial_stances:
-            if any(word in stance.lower() for word in topic_lower.split() if len(word) > 3):
-                relevant_opinions.append(stance)
-        
-        return "; ".join(relevant_opinions) if relevant_opinions else "No specific opinions on this topic"
-    
-    def should_participate(self, message_content: str, existing_responses: List = None) -> bool:
-        """Determine if this NPC should respond to a message"""
-        message_lower = message_content.lower()
-        existing_count = len(existing_responses or [])
-        
-        # Always respond if directly addressed by name
-        if self.name.lower() in message_lower:
-            return True
-        
-        # Check for expertise match
-        for area in self.expertise_areas:
-            area_keywords = area.replace('_', ' ').split()
-            if any(keyword in message_lower for keyword in area_keywords):
-                return True
-        
-        # For debates, more people should participate
-        conversation_type = self.detect_conversation_type(message_content)
-        if conversation_type == "debate":
-            return existing_count < 3
-        
-        # For general questions, be more selective
-        general_indicators = ["all", "everyone", "how is", "how are"]
-        if any(indicator in message_lower for indicator in general_indicators):
-            return existing_count < 2
-        
-        # Lower chance for random participation
-        if existing_count == 0:
-            return random.random() < 0.4
-        
-        return False
-    
     def generate_response(self, user_input: str, conversation_context: List[Message] = None, others_responses: List = None) -> Tuple[str, bool, float]:
-        """Generate response using thread-safe Ollama requests"""
+        """Generate response using memory context and thread-safe Ollama requests"""
         start_time = time.time()
+        
+        # Get relevant memories for context
+        memory_context = self.memory_manager.get_relevant_context_for_npc(
+            self.name, user_input, max_memories=2
+        )
         
         # Build prompt
         conversation_type = self.detect_conversation_type(user_input)
@@ -594,10 +623,14 @@ class ScalableNPCAgent:
             self.persona
         ]
         
-        # Add conversation context (very limited to prevent corruption)
+        # Add memory context if available
+        if memory_context:
+            prompt_parts.append(f"What you remember: {'; '.join(memory_context[:2])}")
+        
+        # Add limited conversation context
         if conversation_context:
             prompt_parts.append("Recent context:")
-            for msg in conversation_context[-2:]:  # Only last 2 messages
+            for msg in conversation_context[-2:]:
                 if msg.role == "user":
                     prompt_parts.append(f"Player: {msg.content}")
                 elif msg.role == "assistant" and msg.agent_name != self.name:
@@ -607,7 +640,7 @@ class ScalableNPCAgent:
         if conversation_type == "debate":
             opinions = self.get_relevant_opinions(user_input)
             if opinions != "No specific opinions on this topic":
-                prompt_parts.append(f"Your opinion: {opinions[:100]}")  # Truncated
+                prompt_parts.append(f"Your opinion: {opinions[:100]}")
             
             if others_responses and len(others_responses) > 0:
                 last_response = others_responses[-1]
@@ -642,21 +675,120 @@ class ScalableNPCAgent:
         response_time = end_time - start_time
         
         if success:
-            # Record conversation
+            # Record conversation in both local and memory manager
             self.add_message("user", user_input)
             self.add_message("assistant", agent_response)
+            
+            # Record player telling this NPC something
+            self.memory_manager.player_tells_npc(
+                self.name, user_input, self.current_location, 
+                self._extract_tags_from_message(user_input)
+            )
+            
             return agent_response, True, response_time
         else:
             return agent_response, False, response_time
     
+    def _extract_tags_from_message(self, message: str) -> List[str]:
+        """Extract relevant tags from message for memory categorization"""
+        message_lower = message.lower()
+        tags = []
+        
+        # Common horse-related topics
+        topic_keywords = {
+            "feeding": ["feed", "hay", "grain", "food", "eat"],
+            "training": ["train", "exercise", "practice", "lesson"],
+            "health": ["health", "sick", "vet", "medicine", "injury"],
+            "grooming": ["brush", "groom", "clean", "wash"],
+            "equipment": ["saddle", "bridle", "equipment", "gear"],
+            "competition": ["compete", "show", "race", "competition"],
+            "behavior": ["behavior", "nervous", "calm", "excited"]
+        }
+        
+        for tag, keywords in topic_keywords.items():
+            if any(keyword in message_lower for keyword in keywords):
+                tags.append(tag)
+        
+        return tags
+    
+    def detect_conversation_type(self, message: str) -> str:
+        """Detect if this should be a debate or casual conversation"""
+        message_lower = message.lower()
+        
+        debate_triggers = ["better", "prefer", "best", "vs", "versus", "compare", "which", "what do you think about", "opinion"]
+        controversial_topics = ["saddle", "feed", "training", "method", "brand", "equipment", "technique", "hay", "silage", "grain"]
+        
+        is_debate_question = any(trigger in message_lower for trigger in debate_triggers)
+        has_controversial_topic = any(topic in message_lower for topic in controversial_topics)
+        
+        if is_debate_question and has_controversial_topic:
+            return "debate"
+        else:
+            return "conversation"
+    
+    def get_relevant_opinions(self, topic: str) -> str:
+        """Get relevant professional opinions for debate topics"""
+        topic_lower = topic.lower()
+        relevant_opinions = []
+        
+        for opinion_topic, opinion in self.professional_opinions.items():
+            if any(keyword in topic_lower for keyword in opinion_topic.split('_')):
+                relevant_opinions.append(f"{opinion_topic}: {opinion}")
+        
+        for stance in self.controversial_stances:
+            if any(word in stance.lower() for word in topic_lower.split() if len(word) > 3):
+                relevant_opinions.append(stance)
+        
+        return "; ".join(relevant_opinions) if relevant_opinions else "No specific opinions on this topic"
+    
+    def should_participate(self, message_content: str, existing_responses: List = None) -> bool:
+        """Enhanced participation logic using memory"""
+        message_lower = message_content.lower()
+        existing_count = len(existing_responses or [])
+        
+        # Always respond if directly addressed by name
+        if self.name.lower() in message_lower:
+            return True
+        
+        # Check if NPC has relevant memories about the topic
+        agent_memory = self.memory_manager.get_npc_memory(self.name)
+        if agent_memory:
+            message_words = [word for word in message_lower.split() if len(word) > 3]
+            for word in message_words:
+                if agent_memory.knows_about(word):
+                    return True
+        
+        # Check for expertise match
+        for area in self.expertise_areas:
+            area_keywords = area.replace('_', ' ').split()
+            if any(keyword in message_lower for keyword in area_keywords):
+                return True
+        
+        # For debates, more people should participate
+        conversation_type = self.detect_conversation_type(message_content)
+        if conversation_type == "debate":
+            return existing_count < 3
+        
+        # For general questions, be more selective
+        general_indicators = ["all", "everyone", "how is", "how are"]
+        if any(indicator in message_lower for indicator in general_indicators):
+            return existing_count < 2
+        
+        # Lower chance for random participation
+        if existing_count == 0:
+            return random.random() < 0.4
+        
+        return False
+    
     def add_message(self, role: str, content: str) -> Message:
-        """Add message to conversation history"""
+        """Add message to conversation history with location"""
         message = Message(
             id=str(uuid.uuid4()),
             role=role,
             content=content,
             timestamp=time.time(),
-            agent_name=self.name if role == "assistant" else "player"
+            agent_name=self.name if role == "assistant" else "player",
+            location=self.current_location
         )
         self.conversation_history.append(message)
         return message
@@ -666,53 +798,152 @@ class ScalableNPCAgent:
         self.conversation_history = []
     
     def get_stats(self) -> Dict:
-        """Get agent statistics"""
+        """Get agent statistics including memory stats"""
+        agent_memory = self.memory_manager.get_npc_memory(self.name)
+        memory_stats = agent_memory.get_memory_summary() if agent_memory else {}
+        
         return {
             "name": self.name,
             "role": self.npc_role.value,
             "title": self.template_data.get('title', 'NPC'),
             "total_messages": len(self.conversation_history),
-            "expertise_areas": self.expertise_areas
+            "expertise_areas": self.expertise_areas,
+            "current_location": self.current_location,
+            "memory_stats": memory_stats
         }
 
 class NPCFactory:
-    """Factory for creating NPCs from configuration files"""
+    """Factory for creating NPCs with memory integration and optional RAG enhancement"""
     
     @staticmethod
-    def create_npc(npc_config_name: str) -> ScalableNPCAgent:
-        """Create NPC from config file name"""
-        return ScalableNPCAgent(npc_config_name)
+    def create_npc(npc_config_name: str, memory_manager: MemoryManager, location: str = "stable_yard", enable_rag: bool = True) -> ScalableNPCAgent:
+        """Create NPC from config file name with memory integration and optional RAG"""
+        if enable_rag and RAG_AVAILABLE:
+            try:
+                # Create RAG-enhanced agent
+                return create_rag_enhanced_agent(npc_config_name, memory_manager, location, enable_rag=True)
+            except Exception as e:
+                print(f"⚠️  Failed to create RAG-enhanced {npc_config_name}: {e}")
+                print("🔄 Falling back to regular agent")
+                # Fall back to regular agent
+                return ScalableNPCAgent(npc_config_name, memory_manager, location)
+        else:
+            # Create regular agent
+            return ScalableNPCAgent(npc_config_name, memory_manager, location)
     
     @staticmethod
-    def create_core_team():
-        """Create the core stable team"""
+    def create_core_team(memory_manager: MemoryManager, enable_rag: bool = True):
+        """Create the core stable team with realistic starting locations and optional RAG"""
+        if enable_rag and RAG_AVAILABLE:
+            try:
+                # Create RAG-enhanced team
+                return create_rag_enhanced_team(memory_manager, enable_rag=True)
+            except Exception as e:
+                print(f"⚠️  Failed to create RAG-enhanced team: {e}")
+                print("🔄 Falling back to regular agents")
+        
+        # Create regular team
         return [
-            NPCFactory.create_npc("elin_behaviourist"),
-            NPCFactory.create_npc("oskar_stable_hand"), 
-            NPCFactory.create_npc("astrid_stable_hand"),
-            NPCFactory.create_npc("chris_rival"),
-            NPCFactory.create_npc("andy_trainer")
+            NPCFactory.create_npc("elin_behaviourist", memory_manager, "barn", enable_rag=False),
+            NPCFactory.create_npc("oskar_stable_hand", memory_manager, "stable_yard", enable_rag=False), 
+            NPCFactory.create_npc("astrid_stable_hand", memory_manager, "barn", enable_rag=False),
+            NPCFactory.create_npc("chris_rival", memory_manager, "arena", enable_rag=False),
+            NPCFactory.create_npc("andy_trainer", memory_manager, "arena", enable_rag=False)
         ]
 
 class EnhancedConversationManager:
-    """Enhanced ConversationManager with conversational momentum"""
+    """Enhanced ConversationManager with memory integration and RAG support"""
     
-    def __init__(self):
+    def __init__(self, enable_rag: bool = True):
+        self.memory_manager = MemoryManager()
         self.agents: Dict[str, ScalableNPCAgent] = {}
         self.conversation_log: List[Message] = []
-        self.momentum = ConversationalMomentum()
+        self.momentum = ConversationalMomentum(self.memory_manager)
+        self.current_location = "stable_yard"  # Track player's current location
+        self.rag_enabled = enable_rag and RAG_AVAILABLE
+        
+        if self.rag_enabled:
+            print("🔥 RAG system enabled for enhanced horse knowledge!")
+        else:
+            print("📚 Running with standard NPCs (no RAG)")
+    
+    def toggle_rag(self) -> str:
+        """Toggle RAG system on/off (for comparison)"""
+        if not RAG_AVAILABLE:
+            return "❌ RAG system not available - check dependencies"
+        
+        self.rag_enabled = not self.rag_enabled
+        status = "enabled" if self.rag_enabled else "disabled"
+        return f"🔄 RAG system {status}. Restart to apply changes."
+    
+    def get_rag_status(self) -> str:
+        """Get current RAG status"""
+        if not RAG_AVAILABLE:
+            return "❌ Not Available"
+        elif self.rag_enabled:
+            return "✅ Enabled"
+        else:
+            return "🔄 Disabled"
     
     def register_agent(self, agent: ScalableNPCAgent):
         """Register an agent"""
         self.agents[agent.name] = agent
         role_desc = agent.template_data.get('title', agent.npc_role.value)
-        print(f"🎭 Registered {agent.name} ({role_desc})")
+        print(f"🎭 Registered {agent.name} ({role_desc}) at {agent.current_location}")
+    
+    def move_player_to_location(self, location: str):
+        """Move player to a new location"""
+        old_location = self.current_location
+        self.current_location = location
+        
+        # Record event that NPCs in both locations can witness
+        if old_location != location:
+            # NPCs in old location see player leave
+            old_location_npcs = [name for name, agent in self.agents.items() 
+                               if agent.current_location == old_location]
+            if old_location_npcs:
+                self.memory_manager.record_witnessed_event(
+                    f"Player left {old_location}",
+                    old_location,
+                    old_location_npcs,
+                    ["player_movement"]
+                )
+            
+            # NPCs in new location see player arrive
+            new_location_npcs = [name for name, agent in self.agents.items() 
+                               if agent.current_location == location]
+            if new_location_npcs:
+                self.memory_manager.record_witnessed_event(
+                    f"Player arrived at {location}",
+                    location,
+                    new_location_npcs,
+                    ["player_movement"]
+                )
+        
+        print(f"🚶 You moved to {location}")
+        
+        # Show who's here
+        npcs_here = [agent.name for agent in self.agents.values() 
+                    if agent.current_location == location]
+        if npcs_here:
+            print(f"👥 NPCs here: {', '.join(npcs_here)}")
+    
+    def move_npc_to_location(self, npc_name: str, location: str):
+        """Move an NPC to a new location"""
+        if npc_name in self.agents:
+            self.agents[npc_name].move_to_location(location)
+            return True
+        return False
     
     def send_to_agent(self, agent_name: str, message: str) -> Tuple[str, bool, float]:
-        """Enhanced direct messaging with auto-response potential"""
+        """Enhanced direct messaging with memory recording"""
         agent = self.agents.get(agent_name)
         if not agent:
             return f"Agent '{agent_name}' not found.", False, 0.0
+        
+        # Check if player and agent are in same location
+        if agent.current_location != self.current_location:
+            return f"{agent_name} is not here (they're at {agent.current_location})", False, 0.0
         
         # Add to global log
         self._add_to_global_log("user", message, "player")
@@ -726,22 +957,36 @@ class EnhancedConversationManager:
         if success:
             self._add_to_global_log("assistant", response, agent_name)
             
-            # Check if other NPCs should auto-respond to this exchange
+            # Record this as an NPC response that others can overhear
+            nearby_npcs = [name for name, other_agent in self.agents.items() 
+                          if other_agent.current_location == self.current_location and name != agent_name]
+            
+            for nearby_npc in nearby_npcs:
+                self.memory_manager.npc_tells_npc(
+                    agent_name, nearby_npc,
+                    f"conversation with player: {response}",
+                    self.current_location,
+                    ConfidenceLevel.CONFIDENT,
+                    ["overheard_conversation"]
+                )
+            
+            # Check if other NPCs should auto-respond
             auto_triggers = self.momentum.should_trigger_auto_response(
-                response, agent_name, self.agents
+                response, agent_name, self.current_location, self.agents
             )
             
             if auto_triggers:
                 print(f"\n🔄 Others want to join the conversation:")
                 
-                for other_agent_name, reason, probability in auto_triggers[:1]:  # Max 1 for direct conversations
+                for other_agent_name, reason, probability in auto_triggers[:1]:
                     other_agent = self.agents[other_agent_name]
                     role_desc = other_agent.template_data.get('title', other_agent.npc_role.value)
                     
                     print(f"⚡ {other_agent_name} ({role_desc}) joining in ({reason})")
                     
                     auto_response, auto_success, auto_time = self.momentum.execute_auto_response(
-                        other_agent_name, reason, response, agent_name, self.conversation_log[-3:]
+                        other_agent_name, reason, response, agent_name, 
+                        self.current_location, self.conversation_log[-3:]
                     )
                     
                     if auto_success:
@@ -752,40 +997,53 @@ class EnhancedConversationManager:
         return response, success, response_time
     
     def send_to_all(self, message: str) -> List[Tuple[str, str, bool, float]]:
-        """Enhanced send_to_all with automatic follow-up responses"""
+        """Enhanced send_to_all with memory and location awareness"""
         # Add player message to global log
         self._add_to_global_log("user", message, "player")
         
-        conversation_type = list(self.agents.values())[0].detect_conversation_type(message) if self.agents else "conversation"
+        # Only include NPCs in current location
+        available_agents = {name: agent for name, agent in self.agents.items() 
+                          if agent.current_location == self.current_location}
+        
+        if not available_agents:
+            print(f"📍 No NPCs at {self.current_location}")
+            return []
+        
+        conversation_type = list(available_agents.values())[0].detect_conversation_type(message) if available_agents else "conversation"
+        
+        # Record that all NPCs in location heard player's message
+        npc_names_here = list(available_agents.keys())
+        self.memory_manager.record_witnessed_event(
+            f"Player said: {message}",
+            self.current_location,
+            npc_names_here,
+            ["player_statement"] + self._extract_tags_from_message(message)
+        )
         
         all_responses = []
         current_context = self.conversation_log.copy()
         
-        # Determine participants
+        # Determine participants from available NPCs
         participating_agents = []
-        for agent_name, agent in self.agents.items():
+        for agent_name, agent in available_agents.items():
             if agent.should_participate(message, []):
                 participating_agents.append(agent)
         
-        # For direct questions, only that person responds
-        if any(name.lower() in message.lower() for name in self.agents.keys()):
-            direct_agent = None
-            for name, agent in self.agents.items():
-                if name.lower() in message.lower():
-                    direct_agent = agent
-                    break
-            if direct_agent:
-                participating_agents = [direct_agent]
+        # Direct questions override participation logic
+        for name, agent in available_agents.items():
+            if name.lower() in message.lower():
+                participating_agents = [agent]
+                break
         
-        if not participating_agents and self.agents:
-            participating_agents = [list(self.agents.values())[0]]
+        if not participating_agents and available_agents:
+            participating_agents = [list(available_agents.values())[0]]
         
         # Randomize order
         random.shuffle(participating_agents)
         
-        print(f"💭 {len(participating_agents)} NPCs will respond ({conversation_type} mode)")
+        print(f"💭 {len(participating_agents)} NPCs will respond at {self.current_location} ({conversation_type} mode)")
         
-        # Round 1: Get responses sequentially (thread-safe)
+        # Get responses sequentially
         for agent in participating_agents:
             role_desc = agent.template_data.get('title', agent.npc_role.value)
             print(f"⏳ {agent.name} ({role_desc}) responding...")
@@ -805,54 +1063,60 @@ class EnhancedConversationManager:
                     role="assistant",
                     content=response,
                     timestamp=time.time(),
-                    agent_name=agent.name
+                    agent_name=agent.name,
+                    location=self.current_location
                 )
                 current_context.append(response_msg)
                 self.conversation_log.append(response_msg)
                 
-                # Small delay between responses
+                # Record that other NPCs overheard this response
+                other_npcs_here = [name for name in npc_names_here if name != agent.name]
+                for other_npc in other_npcs_here:
+                    self.memory_manager.npc_tells_npc(
+                        agent.name, other_npc,
+                        f"response to player: {response}",
+                        self.current_location,
+                        ConfidenceLevel.CONFIDENT,
+                        ["overheard_response"]
+                    )
+                
                 time.sleep(0.5)
         
-        # Check for auto-responses after initial round
+        # Check for auto-responses
         if all_responses:
-            last_speaker = all_responses[-1][0]  # Name of last agent who spoke
-            last_message = all_responses[-1][1]  # What they said
+            last_speaker = all_responses[-1][0]
+            last_message = all_responses[-1][1]
             
-            # Check if any NPCs should automatically respond
             auto_triggers = self.momentum.should_trigger_auto_response(
-                last_message, last_speaker, self.agents
+                last_message, last_speaker, self.current_location, available_agents
             )
             
             if auto_triggers:
                 print(f"\n🔄 Auto-responses triggered:")
                 
                 for agent_name, reason, probability in auto_triggers:
-                    agent = self.agents[agent_name]
+                    agent = available_agents[agent_name]
                     role_desc = agent.template_data.get('title', agent.npc_role.value)
                     
                     print(f"⚡ {agent_name} ({role_desc}) responding ({reason}, {probability:.1%})")
                     
-                    # Generate auto-response
                     auto_response, success, response_time = self.momentum.execute_auto_response(
-                        agent_name, reason, last_message, last_speaker, self.conversation_log[-5:]
+                        agent_name, reason, last_message, last_speaker, 
+                        self.current_location, self.conversation_log[-5:]
                     )
                     
                     if success:
-                        # Add to responses and log
                         all_responses.append((agent_name, auto_response, success, response_time))
                         self._add_to_global_log("assistant", auto_response, agent_name)
                         agent.add_message("assistant", auto_response)
                         
                         print(f"  {agent_name}: {auto_response}")
-                        
-                        # Small delay between auto-responses
                         time.sleep(0.3)
                     
-                    # Only allow one auto-response chain per turn
                     break
         
         # Show results
-        print(f"\n💬 Responses:")
+        print(f"\n💬 Responses at {self.current_location}:")
         for agent_name, response, success, response_time in all_responses:
             if success:
                 agent = self.agents[agent_name]
@@ -861,6 +1125,27 @@ class EnhancedConversationManager:
         
         return all_responses
     
+    def _extract_tags_from_message(self, message: str) -> List[str]:
+        """Extract relevant tags from message for memory categorization"""
+        message_lower = message.lower()
+        tags = []
+        
+        topic_keywords = {
+            "feeding": ["feed", "hay", "grain", "food", "eat"],
+            "training": ["train", "exercise", "practice", "lesson"],
+            "health": ["health", "sick", "vet", "medicine", "injury"],
+            "grooming": ["brush", "groom", "clean", "wash"],
+            "equipment": ["saddle", "bridle", "equipment", "gear"],
+            "competition": ["compete", "show", "race", "competition"],
+            "behavior": ["behavior", "nervous", "calm", "excited"]
+        }
+        
+        for tag, keywords in topic_keywords.items():
+            if any(keyword in message_lower for keyword in keywords):
+                tags.append(tag)
+        
+        return tags
+    
     def _add_to_global_log(self, role: str, content: str, agent_name: str):
         """Add message to global conversation log"""
         message = Message(
@@ -868,27 +1153,44 @@ class EnhancedConversationManager:
             role=role,
             content=content,
             timestamp=time.time(),
-            agent_name=agent_name
+            agent_name=agent_name,
+            location=self.current_location
         )
         self.conversation_log.append(message)
     
     def reset_all(self):
-        """Reset all conversations"""
+        """Reset all conversations and memory"""
         for agent in self.agents.values():
             agent.reset_conversation()
         self.conversation_log = []
         self.momentum.conversation_chains = []
         self.momentum.chain_count = 0
-        print("🔄 All conversations reset")
+        self.memory_manager.reset_session()
+        print("🔄 All conversations and memories reset")
     
     def get_stats(self) -> Dict:
-        """Get system statistics"""
+        """Get system statistics including memory stats and RAG status"""
+        memory_stats = self.memory_manager.get_system_stats()
+        
         stats = {
             "total_agents": len(self.agents),
             "total_messages": len(self.conversation_log),
             "momentum_chains": len(self.momentum.conversation_chains),
+            "current_location": self.current_location,
+            "rag_status": self.get_rag_status(),
+            "rag_available": RAG_AVAILABLE,
+            "memory_system": memory_stats,
             "agents": {}
         }
+        
+        # Add RAG stats if available
+        if self.rag_enabled:
+            rag_stats = {}
+            for agent_name, agent in self.agents.items():
+                if hasattr(agent, 'get_rag_stats'):
+                    rag_stats[agent_name] = agent.get_rag_stats()
+            if rag_stats:
+                stats["rag_stats"] = rag_stats
         
         for agent_name, agent in self.agents.items():
             stats["agents"][agent_name] = agent.get_stats()
@@ -898,28 +1200,59 @@ class EnhancedConversationManager:
     def list_agents(self) -> List[str]:
         """Get list of agent names"""
         return list(self.agents.keys()) + ["All"]
+    
+    def show_memory_summary(self, npc_name: str = None):
+        """Show memory summary for specific NPC or all NPCs"""
+        if npc_name and npc_name in self.agents:
+            agent_memory = self.memory_manager.get_npc_memory(npc_name)
+            if agent_memory:
+                summary = agent_memory.get_memory_summary()
+                print(f"\n🧠 {npc_name}'s Memory Summary:")
+                print(f"  Total memories: {summary['total_memories']}")
+                print(f"  Witnessed events: {summary['witnessed_events']}")
+                print(f"  Player told: {summary['player_told']}")
+                print(f"  NPC told: {summary['npc_told']}")
+                print(f"  Overheard: {summary['overheard']}")
+                print(f"  Recent (1h): {summary['recent_memories']}")
+            else:
+                print(f"❌ No memory data for {npc_name}")
+        else:
+            # Show all NPCs
+            stats = self.memory_manager.get_system_stats()
+            print(f"\n🧠 Memory System Summary:")
+            print(f"  Global events: {stats['global_events']}")
+            for npc_name, npc_stats in stats['npc_stats'].items():
+                print(f"  {npc_name}: {npc_stats['total_memories']} memories")
 
-def create_enhanced_npc_system():
-    """Initialize the enhanced NPC system with conversational momentum"""
-    print("🎭 Initializing Enhanced Multi-Agent NPC System with Conversational Momentum")
+def create_enhanced_npc_system(enable_rag: bool = True):
+    """Initialize the enhanced NPC system with memory integration and optional RAG"""
+    print("🎭 Initializing Enhanced Multi-Agent NPC System")
     print("="*70)
     
-    # Create enhanced conversation manager
-    manager = EnhancedConversationManager()
+    # Create enhanced conversation manager (includes memory manager)
+    manager = EnhancedConversationManager(enable_rag=enable_rag)
     
-    # Load NPCs from configurations
+    # Load NPCs from configurations with different starting locations
     try:
-        elin = NPCFactory.create_npc("elin_behaviourist")
-        oskar = NPCFactory.create_npc("oskar_stable_hand")
-        astrid = NPCFactory.create_npc("astrid_stable_hand")
-        chris = NPCFactory.create_npc("chris_rival")
-        andy = NPCFactory.create_npc("andy_trainer")
-
-        manager.register_agent(elin)
-        manager.register_agent(oskar)
-        manager.register_agent(astrid)
-        manager.register_agent(chris)
-        manager.register_agent(andy)
+        npcs = NPCFactory.create_core_team(manager.memory_manager, enable_rag=enable_rag)
+        
+        for npc in npcs:
+            manager.register_agent(npc)
+        
+        # Record initial setup event
+        all_npc_names = [npc.name for npc in npcs]
+        manager.memory_manager.record_witnessed_event(
+            "New stable session started",
+            "stable_yard",
+            all_npc_names,
+            ["session_start", "setup"]
+        )
+        
+        # Show what was loaded
+        if enable_rag and RAG_AVAILABLE:
+            print(f"✅ Created {len(npcs)} RAG-enhanced NPCs with domain expertise")
+        else:
+            print(f"✅ Created {len(npcs)} standard NPCs with session memory")
         
     except Exception as e:
         print(f"⚠️  Error loading NPCs: {e}")
@@ -929,18 +1262,46 @@ def create_enhanced_npc_system():
     return manager
 
 def show_npc_info():
-    """Display information about available NPCs"""
-    print("\n🎭 Enhanced NPC System Information:")
-    print("  - Thread-safe Ollama requests prevent response mixing")
-    print("  - Improved response cleaning and validation")
-    print("  - Automatic NPC-to-NPC conversations with momentum")
-    print("  - Loop prevention with chain limits and cooldowns")
-    print("  - Emotional, expertise, and relationship-based triggers")
+    """Display information about available NPCs and new features"""
+    print("\n🎭 Enhanced NPC System Features:")
+    print("  📚 Session Memory: NPCs remember conversations and events")
+    print("  📍 Spatial Awareness: NPCs only respond if in same location") 
+    print("  🧠 Information Propagation: NPCs share knowledge with each other")
+    print("  ⏰ Memory-triggered Responses: NPCs recall relevant information")
+    print("  📊 Confidence Levels: Different reliability for different sources")
+    
+    if RAG_AVAILABLE:
+        print("  🔥 RAG System: Domain-specific horse care knowledge")
+        print("  🎯 Anti-Hallucination: Accurate responses or 'I don't know'")
+        print("  🔧 Expert Knowledge: Each NPC has specialized expertise")
+    
+    print("\n📍 Location Commands:")
+    print("  - 'go <location>' to move between areas")
+    print("  - 'move <npc> <location>' to move an NPC")
+    
+    print("\n🧠 Memory Commands:")
+    print("  - 'memory <npc>' to see what an NPC remembers")
+    print("  - 'memory' to see system memory summary")
+    
+    if RAG_AVAILABLE:
+        print("\n🔥 RAG Commands:")
+        print("  - 'rag status' to check RAG system status")
+        print("  - 'rag toggle' to enable/disable RAG (restart required)")
+        print("  - Ask horse care questions to test knowledge!")
+    
+    print("\n💡 Try asking NPCs about:")
+    print("  - Horse feeding schedules and nutrition")
+    print("  - Grooming techniques and equipment")
+    print("  - Training methods and competition prep")
+    print("  - Horse behavior and health signs")
     print("  Type 'info' anytime to see this again\n")
 
 if __name__ == "__main__":
-    print("Enhanced Multi-Agent NPC System with Conversational Momentum")
-    print("NPCs now automatically respond to each other!")
+    print("Enhanced Multi-Agent NPC System with Session Memory Integration")
+    if RAG_AVAILABLE:
+        print("🔥 RAG-Enhanced NPCs with Domain-Specific Horse Knowledge!")
+    else:
+        print("📚 Standard NPCs with Session Memory")
     print("\nMake sure Ollama is running: ollama serve")
     print("="*70)
     
@@ -955,34 +1316,103 @@ if __name__ == "__main__":
     show_npc_info()
     
     print(f"🎭 System ready! Available agents: {', '.join(manager.list_agents())}")
+    print(f"📍 Current location: {manager.current_location}")
+    if RAG_AVAILABLE:
+        print(f"🔥 RAG Status: {manager.get_rag_status()}")
+    
     print("\nCommands:")
     print("  - Type message for group discussion")
     print("  - 'AgentName: message' for direct conversation")
+    print("  - 'go <location>' to move (barn, arena, paddock, tack_room, office)")
+    print("  - 'move <npc> <location>' to move an NPC")
+    print("  - 'memory [npc]' to check memories")
+    if RAG_AVAILABLE:
+        print("  - 'rag status/toggle' for RAG commands")
     print("  - 'info' for system information")
     print("  - 'stats' for statistics")
     print("  - 'reset' to clear conversations")
     print("  - 'quit' to exit")
     
-    print(f"\n💬 Examples:")
-    print(f"  Momentum: 'Astrid, do you think you'll compete?'")
-    print(f"  Debate: 'Which saddle brand do you prefer?'")
-    print(f"  Casual: 'How is everyone doing today?'")
+    print(f"\n💬 Test Examples:")
+    if manager.rag_enabled:
+        print(f"  RAG Test: 'Oskar, what's the best feeding schedule for horses?'")
+        print(f"  Expert Knowledge: 'Elin, how do I tell if a horse is stressed?'")
+        print(f"  Competition Prep: 'Andy, what's the best way to train for jumping?'")
+    else:
+        print(f"  Memory test: 'Astrid, Thunder seemed nervous yesterday'")
+        print(f"  Location: 'go barn' then ask about what happened")
+    print(f"  Recall: 'What do you remember about Thunder?'")
     
     while True:
         try:
-            user_input = input(f"\nPlayer: ").strip()
+            user_input = input(f"\nPlayer ({manager.current_location}): ").strip()
             
             if user_input.lower() == 'quit':
                 break
             elif user_input.lower() == 'info':
                 show_npc_info()
                 continue
+            elif user_input.lower().startswith('rag '):
+                if not RAG_AVAILABLE:
+                    print("❌ RAG system not available - check dependencies")
+                    continue
+                    
+                rag_command = user_input[4:].strip().lower()
+                if rag_command == 'status':
+                    print(f"🔥 RAG Status: {manager.get_rag_status()}")
+                    if manager.rag_enabled:
+                        print("💡 NPCs can answer horse care questions with expert knowledge")
+                    else:
+                        print("💡 NPCs use only conversational AI (restart with RAG for expert knowledge)")
+                elif rag_command == 'toggle':
+                    result = manager.toggle_rag()
+                    print(result)
+                else:
+                    print("Available RAG commands: 'rag status', 'rag toggle'")
+                continue
+            elif user_input.lower().startswith('go '):
+                location = user_input[3:].strip()
+                valid_locations = ["stable_yard", "barn", "arena", "paddock", "tack_room", "office"]
+                if location in valid_locations:
+                    manager.move_player_to_location(location)
+                else:
+                    print(f"❌ Unknown location. Available: {', '.join(valid_locations)}")
+                continue
+            elif user_input.lower().startswith('move '):
+                parts = user_input[5:].split()
+                if len(parts) >= 2:
+                    npc_name = parts[0]
+                    location = parts[1]
+                    if manager.move_npc_to_location(npc_name, location):
+                        print(f"✅ Moved {npc_name} to {location}")
+                    else:
+                        print(f"❌ Could not move {npc_name}")
+                else:
+                    print("Usage: move <npc> <location>")
+                continue
+            elif user_input.lower().startswith('memory'):
+                parts = user_input.split()
+                if len(parts) > 1:
+                    manager.show_memory_summary(parts[1])
+                else:
+                    manager.show_memory_summary()
+                continue
             elif user_input.lower() == 'stats':
                 stats = manager.get_stats()
                 print(f"📊 Total messages: {stats['total_messages']}")
+                print(f"📍 Current location: {stats['current_location']}")
                 print(f"🔄 Momentum chains: {stats['momentum_chains']}")
+                print(f"🧠 Global memories: {stats['memory_system']['global_events']}")
+                if RAG_AVAILABLE:
+                    print(f"🔥 RAG Status: {stats['rag_status']}")
+                
                 for agent_name, agent_stats in stats['agents'].items():
-                    print(f"  {agent_name} ({agent_stats['title']}): {agent_stats['total_messages']} messages")
+                    location = agent_stats['current_location']
+                    memory_count = agent_stats['memory_stats'].get('total_memories', 0)
+                    rag_info = ""
+                    if 'rag_stats' in stats and agent_name in stats['rag_stats']:
+                        rag_info = " (RAG-enhanced)"
+                    print(f"  {agent_name} ({agent_stats['title']}) at {location}: {memory_count} memories{rag_info}")
                 continue
             elif user_input.lower() == 'reset':
                 manager.reset_all()
@@ -1014,4 +1444,4 @@ if __name__ == "__main__":
         except KeyboardInterrupt:
             break
     
-    print("\n👋 Thanks for testing the enhanced multi-agent system with conversational momentum!")
+    print("\n👋 Thanks for testing the enhanced multi-agent system with session memory!")
