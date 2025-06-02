@@ -13,8 +13,14 @@ from typing import Dict, List, Tuple, Optional
 # Add parent directory to path for imports
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from knowledge.rag_system import get_rag_system
-from knowledge.npc_rag_integration import get_npc_rag_interface, NPCKnowledgeContext
+# Check RAG system availability
+try:
+    from knowledge.rag_system import get_rag_system
+    from knowledge.npc_rag_integration import get_npc_rag_interface, NPCKnowledgeContext
+    RAG_AVAILABLE = True
+except ImportError as e:
+    RAG_AVAILABLE = False
+    print(f"⚠️  RAG dependencies not available: {e}")
 
 class RAGEnhancedNPCAgent:
     """
