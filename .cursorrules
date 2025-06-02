@@ -1,0 +1,188 @@
+# .cursorrules for Multi-Agent NPC Horse Game Project
+
+## Project Context
+This is an AI/ML course project building a multi-agent NPC system for a horse management game. The system uses local LLMs (Ollama), session memory, spatial awareness, and RAG for realistic horse care conversations.
+
+## Core Technologies
+- Python 3.9+
+- Ollama (phi3:mini model primarily)
+- Session memory system with confidence levels
+- FAISS for vector storage
+- sentence-transformers for embeddings
+- JSON-based NPC configurations
+- Thread-safe request management
+
+## Project Structure Guidelines
+
+### File Organization
+- Keep each module focused on single responsibility
+- Separate concerns: memory, agents, coordination, RAG, game integration
+- Use clear folder structure: `/memory/`, `/agents/`, `/knowledge/`, `/data/`
+- JSON configs in `/data/npcs/` and `/data/role_templates/`
+
+### Code Style & Patterns
+
+#### Python Style
+- Use type hints consistently: `def method(param: str) -> Tuple[str, bool]`
+- Dataclasses for structured data: `@dataclass` for Message, MemoryEvent
+- Enums for constants: NPCRole, InformationSource, ConfidenceLevel
+- Clear variable names: `agent_response` not `resp`, `memory_context` not `ctx`
+
+#### Error Handling
+- Always handle Ollama request failures gracefully
+- Provide fallback responses for AI failures
+- Log errors but don't crash the system
+- Use try/except for file operations (JSON loading)
+
+#### Threading & Concurrency
+- Use thread-safe patterns for Ollama requests
+- Implement request queuing/locking to prevent response mixing
+- Avoid shared mutable state between threads
+
+## Domain-Specific Guidelines
+
+### NPC Agent Development
+- Each NPC should have distinct personality traits reflected in:
+  - Temperature settings (0.1-0.5 range)
+  - Response length (stable_hand: 40 tokens, rival: 60 tokens)
+  - Speaking style and expertise areas
+- Always prevent agent impersonation through explicit prompting
+- Include confidence levels in responses when appropriate
+
+### Memory System
+- Use confidence degradation: CERTAIN → CONFIDENT → UNCERTAIN → DOUBTFUL
+- Tag memories for categorization: ["feeding", "health", "training", "behavior"]
+- Implement spatial awareness for realistic information propagation
+- Track information sources: witnessed, heard, player_told, npc_told
+
+### RAG Implementation
+- Use sentence-transformers for embeddings (all-MiniLM-L6-v2 recommended)
+- Implement strict relevance filtering to prevent hallucination
+- Chunk knowledge documents into 100-200 word segments
+- Include source attribution and confidence scores
+- Fallback to "I don't know" rather than generating false information
+
+### Game Integration Readiness
+- Design APIs to work with both terminal demo and future Unreal Engine
+- Use location-based systems that translate to 3D coordinates
+- Implement event recording system for game state changes
+- Keep AI logic separate from presentation layer
+
+## Code Quality Standards
+
+### Function Design
+- Single responsibility: one function does one thing well
+- Clear return types: Tuple[response: str, success: bool, time: float]
+- Document complex algorithms, especially memory propagation
+- Use descriptive names: `should_trigger_auto_response()` not `check()`
+
+### Class Design
+- Composition over inheritance for agent behaviors
+- Clear separation of concerns in managers (ConversationManager, MemoryManager)
+- Factory patterns for creating configured NPCs
+- Builder patterns for complex prompt construction
+
+### Testing Considerations
+- Write code that's easy to test in isolation
+- Mock Ollama responses for unit tests
+- Create realistic test scenarios for memory system
+- Document expected behaviors for edge cases
+
+## AI/LLM Specific Guidelines
+
+### Prompt Engineering
+- Use clear role definitions: "You are {name}, not Dr. Evelyn or anyone else"
+- Include specific constraints: "Give exactly ONE sentence response"
+- Context windows: limit to last 3-5 messages for performance
+- Temperature tuning per personality type
+
+### Response Processing
+- Clean artifacts from LLM responses: remove "Dr. Evelyn", training data leakage
+- Validate response length and format
+- Implement duplicate sentence detection
+- Use stop tokens to prevent runaway generation
+
+### Memory Context Injection
+- Prioritize recent, high-confidence memories
+- Format memory context clearly: "You told me that...", "I saw that..."
+- Limit memory context to 2-3 most relevant items
+- Include confidence indicators in natural language
+
+## Performance Guidelines
+
+### Resource Management
+- Lazy load knowledge bases and embeddings
+- Cache frequent queries and responses
+- Monitor memory usage with multiple active agents
+- Implement model unloading for resource management
+
+### Scalability
+- Design for 3-5 concurrent NPCs maximum
+- Use async patterns where appropriate for I/O operations
+- Implement conversation history trimming
+- Consider distributed deployment for larger installations
+
+## Documentation Standards
+- Include architecture diagrams for complex systems
+- Document API interfaces for game integration
+- Provide performance benchmarks and memory usage
+- Create realistic demo scenarios that showcase capabilities
+- Maintain clear agent separation with individual conversation histories
+- Demonstrate structured coordination capabilities
+- Document multi-agent coordination mechanisms
+
+## Common Patterns to Use
+
+### Configuration Loading
+```python
+try:
+    with open(config_file, 'r', encoding='utf-8') as f:
+        return json.load(f)
+except (FileNotFoundError, json.JSONDecodeError) as e:
+    logger.warning(f"Config error: {e}")
+    return get_default_config()
+```
+
+### Thread-Safe API Calls
+```python
+with self.request_lock:
+    response = requests.post(ollama_url, json=payload, timeout=30)
+    return self._clean_response(response.json().get('response', ''))
+```
+
+### Memory Recording Pattern
+```python
+event = MemoryEvent(
+    content=content,
+    location=current_location,
+    source=InformationSource.WITNESSED,
+    confidence=ConfidenceLevel.CERTAIN,
+    tags=self._extract_tags(content)
+)
+```
+
+## Anti-Patterns to Avoid
+
+- Don't hardcode responses - use configurable templates
+- Don't mix AI logic with presentation - keep separation
+- Don't ignore threading issues - always use locks for shared resources
+- Don't let agents respond as other agents - strict identity enforcement
+- Don't generate false horse care information - use verified sources only
+- Don't create infinite conversation loops - implement chain limits
+- Don't ignore confidence levels - always degrade information appropriately
+
+## File-Specific Guidelines
+
+### When working on agent files:
+Focus on personality consistency, prompt engineering, and response validation
+
+### When working on memory files:
+Emphasize confidence tracking, spatial awareness, and information propagation
+
+### When working on RAG files:
+Prioritize relevance filtering, source attribution, and fallback mechanisms
+
+### When working on integration files:
+Design for future Unreal Engine compatibility and clean API separation
+
+Remember: This project demonstrates advanced AI techniques while maintaining practical applicability for game development. Code should be production-ready, well-documented, and showcase technical innovation beyond basic LLM usage.
