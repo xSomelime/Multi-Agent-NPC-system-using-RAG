@@ -39,16 +39,42 @@ class TurnManager:
     
     def __init__(self):
         self.conversation_history_limit = 5
-        self.max_participants_per_turn = 3
+        self.max_participants_per_turn = 5  # Increased from 3 for more group interaction
         
         # Participation thresholds by conversation type
         self.participation_thresholds = {
-            ConversationType.CASUAL: 0.3,
-            ConversationType.DEBATE: 0.2,  # Lower threshold = more participation
-            ConversationType.QUESTION_ANSWER: 0.4,
+            ConversationType.CASUAL: 0.2,  # Lowered for more group participation
+            ConversationType.DEBATE: 0.15,
+            ConversationType.QUESTION_ANSWER: 0.3,
             ConversationType.EMERGENCY: 0.1,
-            ConversationType.TEACHING: 0.3
+            ConversationType.TEACHING: 0.25
         }
+        
+        # Track active conversations for UI highlighting
+        self.active_conversations = {}
+    
+    def get_available_conversation_targets(self, location: str, agents: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """Get NPCs available for conversation at current location with their status"""
+        available_npcs = []
+        
+        for name, agent in agents.items():
+            if getattr(agent, 'current_location', None) == location:
+                npc_info = {
+                    'name': name,
+                    'role': getattr(agent, 'npc_role', 'unknown').value,
+                    'is_busy': name in self.active_conversations,
+                    'title': getattr(agent, 'template_data', {}).get('title', ''),
+                    'current_activity': self._get_npc_current_activity(agent)
+                }
+                available_npcs.append(npc_info)
+        
+        return available_npcs
+    
+    def _get_npc_current_activity(self, agent: Any) -> str:
+        """Get NPC's current activity for UI display"""
+        if hasattr(agent, 'current_activity'):
+            return agent.current_activity
+        return "Standing by"
     
     def determine_conversation_type(self, message: str, context: List = None) -> ConversationType:
         """Analyze message to determine conversation type"""

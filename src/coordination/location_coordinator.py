@@ -1,128 +1,170 @@
 #!/usr/bin/env python3
 """
-Location Coordinator
-===================
-
-Manages spatial awareness, location-based interactions, and movement
-coordination for the multi-agent NPC system.
+Location Coordinator - Original structure with dynamic locations
 """
 
-from typing import Dict, List, Set, Optional, Tuple
+from typing import Dict, List, Set, Optional, Tuple, Any
 from dataclasses import dataclass
 from enum import Enum
 
 from memory.session_memory import MemoryManager
 
-
-class LocationType(Enum):
-    """Types of locations in the stable environment"""
-    STABLE_YARD = "stable_yard"
-    BARN = "barn"
-    ARENA = "arena"
-    PADDOCK = "paddock"
-    TACK_ROOM = "tack_room"
-    OFFICE = "office"
-
-
 @dataclass
 class LocationInfo:
     """Information about a location"""
     name: str
-    location_type: LocationType
     capacity: int
     noise_level: str  # quiet, moderate, loud
     typical_activities: List[str]
     connected_locations: List[str]
-
+    description: str
 
 class LocationCoordinator:
-    """Manages location-based coordination and spatial awareness"""
+    """Manages NPC locations and proximity-based information sharing"""
     
-    def __init__(self, memory_manager: MemoryManager):
+    def __init__(self, memory_manager=None):
         self.memory_manager = memory_manager
-        self.player_location = "stable_yard"
+        self.player_location = "stable"  # Default starting location
+        self.locations = {}
         
-        # Define location properties
-        self.locations = {
-            "stable_yard": LocationInfo(
-                name="stable_yard",
-                location_type=LocationType.STABLE_YARD,
-                capacity=8,
-                noise_level="moderate",
-                typical_activities=["general_conversation", "equipment_prep", "horse_handling"],
-                connected_locations=["barn", "arena", "tack_room", "office"]
-            ),
-            "barn": LocationInfo(
-                name="barn",
-                location_type=LocationType.BARN,
-                capacity=6,
-                noise_level="quiet",
-                typical_activities=["feeding", "grooming", "health_checks", "quiet_work"],
-                connected_locations=["stable_yard", "paddock"]
-            ),
-            "arena": LocationInfo(
-                name="arena",
-                location_type=LocationType.ARENA,
-                capacity=4,
-                noise_level="loud",
-                typical_activities=["training", "riding", "lessons", "competition_prep"],
-                connected_locations=["stable_yard", "paddock"]
-            ),
-            "paddock": LocationInfo(
-                name="paddock",
-                location_type=LocationType.PADDOCK,
-                capacity=3,
-                noise_level="quiet",
-                typical_activities=["turnout", "observation", "quiet_discussion"],
-                connected_locations=["barn", "arena"]
-            ),
-            "tack_room": LocationInfo(
-                name="tack_room",
-                location_type=LocationType.TACK_ROOM,
-                capacity=3,
-                noise_level="quiet",
-                typical_activities=["equipment_maintenance", "private_discussion", "planning"],
-                connected_locations=["stable_yard"]
-            ),
-            "office": LocationInfo(
-                name="office",
-                location_type=LocationType.OFFICE,
-                capacity=2,
-                noise_level="quiet",
-                typical_activities=["administration", "private_meetings", "planning"],
-                connected_locations=["stable_yard"]
-            )
+        # Initialize default locations with activities
+        self.initialize_default_locations()
+    
+    def initialize_default_locations(self):
+        """Initialize default game locations"""
+        default_locations = {
+            "stable": {
+                "name": "Main Stable",
+                "noise_level": "moderate",
+                "capacity": 8,
+                "typical_activities": ["grooming", "feeding", "tacking up"],
+                "connected_locations": ["paddock", "pasture"],
+                "description": "A well-maintained stable with individual stalls"
+            },
+            "paddock": {
+                "name": "Training Paddock",
+                "noise_level": "moderate",
+                "capacity": 4,
+                "typical_activities": ["training", "lunging", "exercise"],
+                "connected_locations": ["stable", "arena"],
+                "description": "A fenced area for horse training"
+            },
+            "pasture": {
+                "name": "Grazing Pasture",
+                "noise_level": "quiet",
+                "capacity": 12,
+                "typical_activities": ["grazing", "resting", "free exercise"],
+                "connected_locations": ["stable"],
+                "description": "A large open field for horses to graze"
+            },
+            "arena": {
+                "name": "Competition Arena",
+                "noise_level": "variable",
+                "capacity": 6,
+                "typical_activities": ["competition", "advanced training", "demonstrations"],
+                "connected_locations": ["paddock"],
+                "description": "A professional arena for competitions and training"
+            }
         }
+        
+        self.locations = default_locations
+    
+    def register_location(self, location: str, properties: dict = None):
+        """Register a new location with properties"""
+        # Normalize the location name
+        location = self.normalize_location_name(location)
+        
+        if location in self.locations:
+            return
+            
+        if not properties:
+            # Default properties if none provided
+            properties = {
+                "name": location.title(),
+                "noise_level": "moderate",
+                "capacity": 6,
+                "typical_activities": ["general"],
+                "connected_locations": [],
+                "description": ""
+            }
+        
+        self.locations[location] = type('LocationInfo', (), properties)
+        
+        if self.memory_manager:
+            self.memory_manager.spatial_awareness.register_location(location)
     
     def move_player(self, new_location: str) -> Tuple[bool, str]:
         """Move player to new location with validation"""
-        if new_location not in self.locations:
-            return False, f"Unknown location: {new_location}"
+        # Normalize the location name
+        new_location = self.normalize_location_name(new_location)
+        
+        # Auto-register new locations
+        self.register_location(new_location)
         
         old_location = self.player_location
         self.player_location = new_location
         
         # Record movement events for NPCs to witness
-        if old_location != new_location:
+        if old_location != new_location and old_location != "unknown":
             self._record_player_movement(old_location, new_location)
         
         return True, f"Moved from {old_location} to {new_location}"
     
-    def move_npc(self, npc_name: str, new_location: str, agents: Dict) -> Tuple[bool, str]:
-        """Move NPC to new location"""
+    def move_npc(self, npc_name: str, new_location: str, reason: str = None) -> bool:
+        """Move NPC to new location with memory updates"""
+        # Normalize the location name
+        new_location = self.normalize_location_name(new_location)
+        
         if new_location not in self.locations:
-            return False, f"Unknown location: {new_location}"
+            return False
+            
+        # Get NPC's memory
+        npc_memory = self.memory_manager.get_npc_memory(npc_name) if self.memory_manager else None
+        if not npc_memory:
+            return False
         
-        if npc_name not in agents:
-            return False, f"Unknown NPC: {npc_name}"
+        old_location = npc_memory.current_location
         
-        agent = agents[npc_name]
-        old_location = agent.current_location
+        # Check if movement is valid (locations are connected)
+        if old_location != "unknown" and old_location != new_location:
+            if new_location not in self.locations[old_location]["connected_locations"]:
+                # Can still move, but record it was an unusual movement
+                reason = f"{reason or 'Moved'} (unusual path)" 
         
-        # Update agent location
-        agent.move_to_location(new_location)
+        # Update NPC's location memory
+        npc_memory.update_location(new_location, reason)
         
-        return True, f"{npc_name} moved from {old_location} to {new_location}"
+        # Inform other NPCs at both locations about the movement
+        if self.memory_manager:
+            # NPCs at old location see them leave
+            if old_location != "unknown":
+                npcs_at_old = self.get_npcs_in_location(old_location)
+                for witness in npcs_at_old:
+                    if witness != npc_name:
+                        witness_memory = self.memory_manager.get_npc_memory(witness)
+                        if witness_memory:
+                            witness_memory.add_witnessed_event(
+                                f"{npc_name} left {old_location} and went to {new_location}",
+                                old_location,
+                                [witness],
+                                ["movement", "npc_departure"]
+                            )
+            
+            # NPCs at new location see them arrive
+            npcs_at_new = self.get_npcs_in_location(new_location)
+            for witness in npcs_at_new:
+                if witness != npc_name:
+                    witness_memory = self.memory_manager.get_npc_memory(witness)
+                    if witness_memory:
+                        witness_memory.add_witnessed_event(
+                            f"{npc_name} arrived at {new_location}" + 
+                            (f" from {old_location}" if old_location != "unknown" else ""),
+                            new_location,
+                            [witness],
+                            ["movement", "npc_arrival"]
+                        )
+        
+        return True
     
     def get_npcs_at_location(self, location: str, agents: Dict) -> List[str]:
         """Get all NPCs currently at a specific location"""
@@ -131,37 +173,70 @@ class LocationCoordinator:
     
     def get_location_context(self, location: str) -> Dict[str, any]:
         """Get contextual information about a location"""
+        # Auto-register if unknown
+        self.register_location(location)
+        
         if location not in self.locations:
-            return {}
+            return {"error": f"Could not process location: {location}"}
         
         location_info = self.locations[location]
         
         return {
             "name": location_info.name,
-            "type": location_info.location_type.value,
             "noise_level": location_info.noise_level,
             "typical_activities": location_info.typical_activities,
             "capacity": location_info.capacity,
-            "connected_locations": location_info.connected_locations
+            "connected_locations": location_info.connected_locations,
+            "description": self._get_location_description(location)
         }
+    
+    def _get_location_description(self, location: str) -> str:
+        """Get description for location context in conversations"""
+        if "stable" in location.lower():
+            return f"The {location} area - a hub of daily activity and horse care."
+        elif "pasture" in location.lower():
+            return f"The {location} - open grazing fields where horses roam freely."
+        elif "paddock" in location.lower():
+            return f"The {location} - training and exercise area for active work."
+        else:
+            return f"The {location} area"
+    
+    def normalize_location_name(self, location: str) -> str:
+        """Convert target location names to standard location names.
+        
+        Examples:
+            Target_Stable -> stable
+            Target_Pasture -> pasture
+            Target_Paddock -> paddock
+            Target_Arena -> arena
+        """
+        # If location is already normalized, return as is
+        if location.lower() in self.locations:
+            return location.lower()
+            
+        # Remove 'Target_' prefix if present and convert to lowercase
+        normalized = location.lower()
+        if normalized.startswith('target_'):
+            normalized = normalized[7:]
+            
+        # If the normalized version exists in our locations, use that
+        if normalized in self.locations:
+            return normalized
+            
+        # If we don't recognize it, return the original
+        return location
     
     def can_hear_across_locations(self, from_location: str, to_location: str) -> bool:
         """Check if sound carries between locations"""
-        # Adjacent locations with loud activity can sometimes be heard
-        if from_location not in self.locations or to_location not in self.locations:
-            return False
-        
-        from_info = self.locations[from_location]
-        to_info = self.locations[to_location]
-        
         # Same location = always can hear
         if from_location == to_location:
             return True
         
-        # Adjacent locations with loud noise can be heard
-        if (to_location in from_info.connected_locations and 
-            from_info.noise_level == "loud"):
-            return True
+        # Connected locations might hear each other
+        if from_location in self.locations:
+            from_info = self.locations[from_location]
+            if to_location in from_info.connected_locations and from_info.noise_level == "loud":
+                return True
         
         return False
     
@@ -169,24 +244,15 @@ class LocationCoordinator:
         """Suggest best location for a specific activity"""
         activity_lower = activity.lower()
         
-        # Map activities to preferred locations
-        activity_preferences = {
-            "training": ["arena"],
-            "riding": ["arena", "paddock"],
-            "feeding": ["barn"],
-            "grooming": ["barn", "stable_yard"],
-            "private": ["office", "tack_room"],
-            "meeting": ["office", "tack_room"],
-            "equipment": ["tack_room", "stable_yard"],
-            "quiet": ["paddock", "barn", "office"],
-            "discussion": ["stable_yard", "office"]
-        }
+        for location_name, location_info in self.locations.items():
+            for typical_activity in location_info.typical_activities:
+                if activity_lower in typical_activity.lower():
+                    return location_name
         
-        for activity_key, preferred_locations in activity_preferences.items():
-            if activity_key in activity_lower:
-                return preferred_locations[0]
-        
-        return "stable_yard"  # Default location
+        # Default to first available location
+        if self.locations:
+            return list(self.locations.keys())[0]
+        return None
     
     def get_movement_suggestions(self, current_location: str) -> List[Tuple[str, str]]:
         """Get movement suggestions from current location"""
@@ -197,9 +263,11 @@ class LocationCoordinator:
         suggestions = []
         
         for connected_location in location_info.connected_locations:
-            connected_info = self.locations[connected_location]
-            reason = f"Go to {connected_location} for {', '.join(connected_info.typical_activities[:2])}"
-            suggestions.append((connected_location, reason))
+            if connected_location in self.locations:
+                connected_info = self.locations[connected_location]
+                activities = ", ".join(connected_info.typical_activities[:2])
+                reason = f"Go to {connected_location} for {activities}"
+                suggestions.append((connected_location, reason))
         
         return suggestions
     
@@ -241,74 +309,40 @@ class LocationCoordinator:
                 ["player_movement", "arrival"]
             )
     
-    def get_location_atmosphere(self, location: str, agents: Dict) -> Dict[str, any]:
-        """Get current atmosphere and social dynamics of a location"""
-        npcs_here = self.get_npcs_at_location(location, agents)
-        location_info = self.locations.get(location)
-        
-        if not location_info:
+    def get_location_atmosphere(self, location: str, agents: Dict) -> Dict[str, Any]:
+        """Get rich information about a location's current state"""
+        if location not in self.locations:
             return {}
         
-        atmosphere = {
-            "location": location,
-            "npcs_present": npcs_here,
-            "player_present": self.player_location == location,
-            "occupancy": len(npcs_here) + (1 if self.player_location == location else 0),
-            "capacity": location_info.capacity,
-            "noise_level": location_info.noise_level,
-            "typical_activities": location_info.typical_activities,
-            "social_dynamics": self._analyze_social_dynamics(npcs_here, agents)
-        }
+        location_info = self.locations[location].copy()
+        npcs_here = []
         
-        return atmosphere
-    
-    def _analyze_social_dynamics(self, npc_names: List[str], agents: Dict) -> Dict[str, any]:
-        """Analyze social dynamics between NPCs in a location"""
-        if len(npc_names) < 2:
-            return {"type": "individual" if npc_names else "empty"}
+        for name, agent in agents.items():
+            if getattr(agent, 'current_location', None) == location:
+                npc_memory = self.memory_manager.get_npc_memory(name) if self.memory_manager else None
+                familiarity = npc_memory.get_location_familiarity(location) if npc_memory else {}
+                
+                npcs_here.append({
+                    "name": name,
+                    "role": getattr(agent, 'npc_role', 'unknown').value,
+                    "title": getattr(agent, 'template_data', {}).get('title', ''),
+                    "familiarity": familiarity
+                })
         
-        # Analyze relationships and personalities
-        personalities = []
-        relationships = {}
-        
-        for npc_name in npc_names:
-            if npc_name in agents:
-                agent = agents[npc_name]
-                if hasattr(agent, 'npc_data'):
-                    traits = agent.npc_data.get('personality', {}).get('traits', [])
-                    personalities.extend(traits)
-                    
-                    npc_relationships = agent.npc_data.get('relationships', {})
-                    for other_npc in npc_names:
-                        if other_npc != npc_name and other_npc.lower() in npc_relationships:
-                            relationships[f"{npc_name}-{other_npc}"] = npc_relationships[other_npc.lower()]
-        
-        # Determine social dynamics
-        dynamics = {"type": "mixed"}
-        
-        if "competitive" in personalities and "rival" in personalities:
-            dynamics["type"] = "tense"
-        elif "empathetic" in personalities and "gentle" in personalities:
-            dynamics["type"] = "supportive"
-        elif "confident" in personalities or "assertive" in personalities:
-            dynamics["type"] = "dynamic"
-        else:
-            dynamics["type"] = "casual"
-        
-        dynamics["personalities"] = list(set(personalities))
-        dynamics["relationships"] = relationships
-        
-        return dynamics
+        location_info["present_npcs"] = npcs_here
+        return location_info
     
     def get_stats(self) -> Dict[str, any]:
         """Get location coordinator statistics"""
         return {
             "total_locations": len(self.locations),
             "player_location": self.player_location,
-            "location_types": [loc.value for loc in LocationType],
-            "locations": {name: {
-                "type": info.location_type.value,
-                "capacity": info.capacity,
-                "noise_level": info.noise_level
-            } for name, info in self.locations.items()}
-        } 
+            "discovered_locations": list(self.locations.keys()),
+            "location_details": {
+                name: {
+                    "capacity": info.capacity,
+                    "noise_level": info.noise_level,
+                    "activities": info.typical_activities[:3]
+                } for name, info in self.locations.items()
+            }
+        }

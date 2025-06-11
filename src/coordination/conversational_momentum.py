@@ -14,6 +14,7 @@ from typing import Dict, List, Tuple, Optional, Any
 from collections import defaultdict
 
 from memory.session_memory import MemoryManager, ConfidenceLevel
+from src.agents.ollama_manager import get_ollama_manager
 
 
 class ConversationalMomentum:
@@ -146,26 +147,19 @@ class ConversationalMomentum:
         
         return False
     
-    def execute_auto_response(self, agent_name: str, trigger_reason: str, 
-                            original_message: str, speaker_name: str,
-                            current_location: str, conversation_context: List) -> Tuple[str, bool, float]:
-        """Generate automatic response with memory context"""
+    def execute_auto_response(self, agent_name: str, trigger_reason: str, original_message: str, 
+                            speaker_name: str, current_location: str, conversation_context: List) -> Tuple[str, bool, float]:
+        """Execute auto-response with appropriate context"""
+        start_time = time.time()
         
-        # Update tracking
-        self.conversation_chains.append(agent_name)
-        self.chain_count += 1
-        self.last_auto_response[agent_name] = time.time()
-        
-        # Build context-aware prompt with memory
+        # Get memory context
         memory_context = ""
-        agent_memory = self.memory_manager.get_npc_memory(agent_name)
-        if agent_memory:
-            # Get relevant memories
-            relevant_memories = self.memory_manager.get_relevant_context_for_npc(
-                agent_name, original_message, max_memories=2
-            )
-            if relevant_memories:
-                memory_context = f"Based on what you know: {'; '.join(relevant_memories)}. "
+        if trigger_reason == "memory_trigger":
+            memories = self.memory_manager.get_npc_memory(agent_name)
+            if memories:
+                relevant = memories.get_memories_about(original_message, max_memories=1)
+                if relevant:
+                    memory_context = f"\nYou remember: {relevant[0].content}\n"
         
         if trigger_reason == "mentioned_directly":
             instruction = f"You were directly mentioned by {speaker_name}. Give a brief, natural response."
@@ -197,8 +191,8 @@ RULES:
 
 {agent_name}:"""
         
-        # Import here to avoid circular import
-        from main_npc_system import ollama_manager
+        # Get thread-safe request manager
+        ollama_manager = get_ollama_manager()
         
         response, success = ollama_manager.make_request(
             agent_name,
@@ -208,18 +202,8 @@ RULES:
             35
         )
         
-        # Record this conversation in memory
-        if success and agent_memory:
-            # Record that agent overheard this conversation
-            self.memory_manager.npc_tells_npc(
-                speaker_name, agent_name, 
-                f"conversation about: {original_message[:50]}...", 
-                current_location,
-                ConfidenceLevel.CONFIDENT,
-                ["conversation"]
-            )
-        
-        return response, success, 0.5
+        end_time = time.time()
+        return response, success, end_time - start_time
     
     def _check_direct_mention(self, message: str, agent_name: str) -> bool:
         """Check if agent is directly mentioned or addressed"""
