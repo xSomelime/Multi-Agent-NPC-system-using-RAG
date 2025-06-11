@@ -1,13 +1,11 @@
 #!/usr/bin/env python3
 """
-Session Memory System for NPCs
-Tracks what each NPC knows based on what they've witnessed, heard, or been told
-Includes spatial awareness for realistic information propagation
+Session Memory System for NPCs - Original structure with dynamic locations
 """
 
 import time
 import uuid
-from typing import Dict, List, Optional, Set
+from typing import Dict, List, Optional, Set, Any
 from dataclasses import dataclass
 from enum import Enum
 
@@ -53,17 +51,31 @@ class SpatialAwareness:
     
     def __init__(self):
         self.npc_locations: Dict[str, str] = {}
-        self.location_zones = {
-            "stable_yard": {"conversation_range": 15, "visual_range": 30},
-            "arena": {"conversation_range": 20, "visual_range": 50},
-            "barn": {"conversation_range": 10, "visual_range": 20},
-            "paddock": {"conversation_range": 25, "visual_range": 40},
-            "tack_room": {"conversation_range": 8, "visual_range": 15},
-            "office": {"conversation_range": 6, "visual_range": 12}
-        }
+        # Dynamic location zones - learned as locations are discovered
+        self.location_zones: Dict[str, Dict] = {}
+    
+    def register_location(self, location: str):
+        """Register a new location zone"""
+        if location in self.location_zones:
+            return
+        
+        # Infer zone properties from location name
+        if "stable" in location.lower():
+            zone_props = {"conversation_range": 15, "visual_range": 30}
+        elif "pasture" in location.lower():
+            zone_props = {"conversation_range": 30, "visual_range": 50}
+        elif "paddock" in location.lower():
+            zone_props = {"conversation_range": 25, "visual_range": 40}
+        else:
+            zone_props = {"conversation_range": 20, "visual_range": 35}
+        
+        self.location_zones[location] = zone_props
     
     def update_npc_location(self, npc_name: str, location: str):
         """Update NPC's current location"""
+        # Register location if new
+        self.register_location(location)
+        
         self.npc_locations[npc_name] = location
     
     def get_npcs_in_location(self, location: str) -> List[str]:
@@ -79,7 +91,7 @@ class SpatialAwareness:
             return False
         
         # In same location - can overhear within conversation range
-        zone_info = self.location_zones.get(speaker_loc, {"conversation_range": 10})
+        zone_info = self.location_zones.get(speaker_loc, {"conversation_range": 20})
         return True  # Simplified - in real game would calculate actual distance
     
     def can_witness_event(self, npc_name: str, event_location: str) -> bool:
@@ -95,6 +107,88 @@ class SessionMemory:
         self.memories: List[MemoryEvent] = []
         self.known_facts: Set[str] = set()  # Quick lookup for what NPC knows
         
+        # Location tracking
+        self.current_location: str = "unknown"
+        self.location_history: List[Dict[str, Any]] = []
+        self.location_knowledge: Dict[str, Dict[str, Any]] = {}
+    
+    def update_location(self, new_location: str, reason: str = None):
+        """Track NPC movement to a new location"""
+        if new_location == self.current_location:
+            return
+            
+        # Record the movement in location history
+        movement = {
+            "from": self.current_location,
+            "to": new_location,
+            "timestamp": time.time(),
+            "reason": reason or "unknown"
+        }
+        self.location_history.append(movement)
+        
+        # Update location knowledge
+        if new_location not in self.location_knowledge:
+            self.location_knowledge[new_location] = {
+                "first_visit": time.time(),
+                "last_visit": time.time(),
+                "visit_count": 1,
+                "activities": []
+            }
+        else:
+            self.location_knowledge[new_location]["last_visit"] = time.time()
+            self.location_knowledge[new_location]["visit_count"] += 1
+        
+        # Create a memory of the movement
+        self.add_witnessed_event(
+            f"I moved from {self.current_location} to {new_location}" + 
+            (f" because {reason}" if reason else ""),
+            new_location,
+            [self.npc_name],
+            ["movement", "location_change"]
+        )
+        
+        self.current_location = new_location
+    
+    def record_activity(self, location: str, activity: str):
+        """Record an activity performed at a location"""
+        if location in self.location_knowledge:
+            self.location_knowledge[location]["activities"].append({
+                "activity": activity,
+                "timestamp": time.time()
+            })
+    
+    def get_location_familiarity(self, location: str) -> Dict[str, Any]:
+        """Get NPC's familiarity with a location"""
+        if location not in self.location_knowledge:
+            return {
+                "familiar": False,
+                "visit_count": 0,
+                "last_visit": None,
+                "activities": []
+            }
+        
+        knowledge = self.location_knowledge[location]
+        return {
+            "familiar": True,
+            "visit_count": knowledge["visit_count"],
+            "last_visit": knowledge["last_visit"],
+            "activities": [a["activity"] for a in knowledge["activities"][-5:]]  # Last 5 activities
+        }
+    
+    def get_recent_locations(self, hours: float = 24.0) -> List[str]:
+        """Get locations visited in the last X hours"""
+        cutoff_time = time.time() - (hours * 3600)
+        recent = []
+        
+        for movement in reversed(self.location_history):
+            if movement["timestamp"] >= cutoff_time:
+                if movement["to"] not in recent:
+                    recent.append(movement["to"])
+            else:
+                break
+                
+        return recent
+    
     def add_witnessed_event(self, content: str, location: str, witnesses: List[str] = None, tags: List[str] = None):
         """Add something the NPC directly witnessed"""
         event = MemoryEvent(
@@ -219,14 +313,19 @@ class MemoryManager:
         self.spatial_awareness = SpatialAwareness()
         self.global_events: List[MemoryEvent] = []  # Events that happened in the world
     
-    def register_npc(self, npc_name: str, initial_location: str = "stable_yard"):
+    def register_npc(self, npc_name: str, initial_location: str = "unknown"):
         """Register an NPC in the memory system"""
         self.npc_memories[npc_name] = SessionMemory(npc_name)
-        self.spatial_awareness.update_npc_location(npc_name, initial_location)
+        if initial_location != "unknown":
+            self.spatial_awareness.update_npc_location(npc_name, initial_location)
     
     def update_npc_location(self, npc_name: str, new_location: str):
         """Update NPC location for spatial awareness"""
         self.spatial_awareness.update_npc_location(npc_name, new_location)
+    
+    def get_discovered_locations(self) -> List[str]:
+        """Get list of all discovered locations"""
+        return list(self.spatial_awareness.location_zones.keys())
     
     def record_witnessed_event(self, event_content: str, location: str, witnesses: List[str], tags: List[str] = None):
         """Record an event that was witnessed by specific NPCs"""
@@ -332,6 +431,7 @@ class MemoryManager:
         stats = {
             "registered_npcs": len(self.npc_memories),
             "global_events": len(self.global_events),
+            "discovered_locations": list(self.spatial_awareness.location_zones.keys()),
             "npc_stats": {}
         }
         
@@ -339,41 +439,3 @@ class MemoryManager:
             stats["npc_stats"][npc_name] = memory.get_memory_summary()
         
         return stats
-
-# Example usage for testing
-if __name__ == "__main__":
-    # Initialize memory system
-    memory_manager = MemoryManager()
-    
-    # Register NPCs
-    memory_manager.register_npc("Elin", "barn")
-    memory_manager.register_npc("Oskar", "stable_yard") 
-    memory_manager.register_npc("Astrid", "barn")
-    
-    # Record witnessed event
-    memory_manager.record_witnessed_event(
-        "Thunder was acting nervous during grooming", 
-        "barn", 
-        ["Elin", "Astrid"],
-        ["horse_behavior", "thunder"]
-    )
-    
-    # Player tells Oskar something
-    memory_manager.player_tells_npc(
-        "Oskar", 
-        "I think Thunder needs extra hay tonight", 
-        "stable_yard",
-        ["feeding", "thunder"]
-    )
-    
-    # Check what Elin remembers about Thunder
-    elin_memory = memory_manager.get_npc_memory("Elin")
-    if elin_memory:
-        thunder_memories = elin_memory.get_memories_about("thunder")
-        print(f"Elin remembers {len(thunder_memories)} things about Thunder")
-        for memory in thunder_memories:
-            print(f"- {memory.content} (confidence: {memory.confidence.value})")
-    
-    # Get system stats
-    stats = memory_manager.get_system_stats()
-    print(f"System stats: {stats}")
