@@ -22,13 +22,15 @@ except ImportError as e:
     RAG_AVAILABLE = False
     print(f"⚠️  RAG dependencies not available: {e}")
 
+from src.agents.base_agent import ScalableNPCAgent
+
 class RAGEnhancedNPCAgent:
     """
     Enhanced NPC Agent with RAG knowledge integration
     Wraps existing ScalableNPCAgent and adds RAG functionality
     """
     
-    def __init__(self, base_agent, enable_rag: bool = True):
+    def __init__(self, base_agent: ScalableNPCAgent, enable_rag: bool = True):
         """
         Initialize RAG-enhanced agent
         
@@ -94,6 +96,7 @@ class RAGEnhancedNPCAgent:
     def _generate_rag_enhanced_response(self, user_input: str, context: NPCKnowledgeContext, 
                                       conversation_context: List = None, others_responses: List = None) -> Tuple[str, bool, float]:
         """Generate response enhanced with RAG knowledge"""
+        start_time = time.time()
         
         # Build enhanced prompt using RAG
         base_prompt = self.base_agent._build_persona()
@@ -126,7 +129,7 @@ class RAGEnhancedNPCAgent:
                     elif msg.role == "assistant" and msg.agent_name != self.base_agent.name:
                         prompt_parts.append(f"{msg.agent_name}: {msg.content}")
         
-        # Conversation type specific instructions (existing logic)
+        # Conversation type specific instructions
         if conversation_type == "debate":
             opinions = self.base_agent.get_relevant_opinions(user_input)
             if opinions != "No specific opinions on this topic":
@@ -136,18 +139,15 @@ class RAGEnhancedNPCAgent:
                 last_response = others_responses[-1]
                 prompt_parts.append(f"{last_response[0]} just said: {last_response[1]}")
             
-            if self.base_agent.npc_role.value == "rival":
+            if self.base_agent.npc_role == "rival":
                 instruction = f"Give one arrogant sentence as {self.base_agent.name} about why your expensive approach is better."
             else:
-                instruction = f"Give one professional sentence as {self.base_agent.name} based on your expertise and knowledge."
+                instruction = f"Give one professional sentence as {self.base_agent.name} based on your expertise."
         else:
-            if self.base_agent.npc_role.value == "rival":
+            if self.base_agent.npc_role == "rival":
                 instruction = f"Give one brief, dismissive sentence as {self.base_agent.name}."
             else:
-                instruction = f"Give one helpful, knowledgeable sentence as {self.base_agent.name}."
-        
-        # Add RAG-specific instruction
-        instruction += " Use your knowledge naturally without quoting sources directly."
+                instruction = f"Give one helpful, friendly sentence as {self.base_agent.name}."
         
         prompt_parts.append(instruction)
         prompt_parts.append(f"Player: {user_input}")
@@ -155,17 +155,16 @@ class RAGEnhancedNPCAgent:
         
         full_prompt = "\n".join(prompt_parts)
         
-        # Use existing Ollama request manager
-        from main_npc_system import ollama_manager
-        
-        start_time = time.time()
+        # Use thread-safe request manager
+        ollama_manager = self.base_agent.ollama_manager
         agent_response, success = ollama_manager.make_request(
-            self.base_agent.name,
-            full_prompt,
-            self.base_agent.model,
-            self.base_agent.temperature,
+            self.base_agent.name, 
+            full_prompt, 
+            self.base_agent.model, 
+            self.base_agent.temperature, 
             self.base_agent.max_response_length
         )
+        
         end_time = time.time()
         response_time = end_time - start_time
         
@@ -205,42 +204,62 @@ class RAGEnhancedNPCAgent:
         
         return False
     
-    def get_rag_stats(self) -> Dict:
-        """Get RAG-specific statistics"""
-        if not self.enable_rag or not self.rag_interface:
-            return {"rag_enabled": False}
-        
-        try:
-            return {
-                "rag_enabled": True,
-                "rag_stats": self.rag_interface.get_rag_stats()
-            }
-        except Exception as e:
-            return {"rag_enabled": True, "rag_error": str(e)}
+    def move_to_location(self, new_location: str):
+        """Delegate location movement to base agent"""
+        self.base_agent.move_to_location(new_location)
     
-    # Delegate all other methods to base agent
-    def __getattr__(self, name):
-        """Delegate unknown attributes to base agent"""
-        return getattr(self.base_agent, name)
+    def reset_conversation_state(self):
+        """Reset only the conversation state while preserving memories."""
+        self.base_agent.reset_conversation_state()
+    
+    def reset_conversation(self):
+        """Reset both conversation state and memories."""
+        self.base_agent.reset_conversation()
+    
+    def get_stats(self) -> Dict:
+        """Get agent statistics including RAG stats"""
+        base_stats = self.base_agent.get_stats()
+        
+        # Add RAG-specific stats
+        base_stats.update({
+            "rag_enabled": self.enable_rag,
+            "rag_interface_available": self.rag_interface is not None
+        })
+        
+        return base_stats
+    
+    # Forward other base agent properties
+    @property
+    def name(self):
+        return self.base_agent.name
+    
+    @property
+    def current_location(self):
+        return self.base_agent.current_location
+    
+    @property
+    def npc_role(self):
+        return self.base_agent.npc_role
+    
+    @property
+    def conversation_history(self):
+        return self.base_agent.conversation_history
 
-def create_rag_enhanced_agent(npc_config_name: str, memory_manager, location: str = "stable_yard", enable_rag: bool = True):
+
+def create_rag_enhanced_agent(npc_config_name: str, memory_manager, enable_rag: bool = True):
     """
     Factory function to create RAG-enhanced NPC agents
     
     Args:
         npc_config_name: NPC configuration file name
         memory_manager: Session memory manager
-        location: Starting location
         enable_rag: Whether to enable RAG functionality
         
     Returns:
         RAGEnhancedNPCAgent instance
     """
-    # Import here to avoid circular imports
-    from main_npc_system import ScalableNPCAgent
-    
-    # Create base agent
-    base_agent = ScalableNPCAgent(npc_config_name, memory_manager, location)
+    # Create base agent without initial location
+    base_agent = ScalableNPCAgent(npc_config_name, memory_manager)
     
     # Create RAG-enhanced wrapper
     rag_agent = RAGEnhancedNPCAgent(base_agent, enable_rag)
@@ -262,14 +281,13 @@ def create_rag_enhanced_team(memory_manager, enable_rag: bool = True):
     
     for config_name, location in team_configs:
         try:
-            rag_agent = create_rag_enhanced_agent(config_name, memory_manager, location, enable_rag)
+            rag_agent = create_rag_enhanced_agent(config_name, memory_manager, enable_rag)
             rag_team.append(rag_agent)
             logging.info(f"Created RAG-enhanced {rag_agent.base_agent.name}")
         except Exception as e:
             logging.error(f"Failed to create RAG agent for {config_name}: {e}")
             # Fall back to base agent
-            from main_npc_system import ScalableNPCAgent
-            base_agent = ScalableNPCAgent(config_name, memory_manager, location)
+            base_agent = ScalableNPCAgent(config_name, memory_manager)
             rag_team.append(base_agent)
     
     return rag_team

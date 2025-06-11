@@ -16,14 +16,15 @@ from dataclasses import dataclass
 from memory.session_memory import MemoryManager
 from src.core.message_types import Message, NPCRole
 from src.core.config_loaders import NPCLoader, RoleTemplateLoader
+from src.agents.ollama_manager import get_ollama_manager
 
 
 class ScalableNPCAgent:
     """Enhanced NPC Agent with memory integration"""
     
-    def __init__(self, npc_config_name: str, memory_manager: MemoryManager, current_location: str = "stable_yard"):
+    def __init__(self, npc_config_name: str, memory_manager: MemoryManager):
         self.memory_manager = memory_manager
-        self.current_location = current_location
+        self.current_location = None  # Location will be set by UE5
         
         self.npc_loader = NPCLoader()
         self.template_loader = RoleTemplateLoader()
@@ -39,8 +40,8 @@ class ScalableNPCAgent:
         self.npc_role = NPCRole(self.npc_data['role_template'])
         self.conversation_history: List[Message] = []
         
-        # Register with memory manager
-        self.memory_manager.register_npc(self.name, current_location)
+        # Register with memory manager - no initial location
+        self.memory_manager.register_npc(self.name)
         
         # Professional opinions for debates
         self.professional_opinions = self.npc_data.get('professional_opinions', {})
@@ -63,7 +64,7 @@ class ScalableNPCAgent:
         # Expertise areas for smart participation
         self.expertise_areas = self.template_data.get('expertise_areas', [])
         
-        print(f"✅ Created {self.name} ({self.template_data.get('title', 'NPC')}) at {current_location}")
+        print(f"✅ Created {self.name} ({self.template_data.get('title', 'NPC')})")
     
     def move_to_location(self, new_location: str):
         """Move NPC to a new location"""
@@ -171,8 +172,8 @@ AS {name.upper()} THE RIVAL:
         
         full_prompt = "\n".join(prompt_parts)
         
-        # Use thread-safe request manager (imported globally)
-        from main_npc_system import ollama_manager
+        # Use thread-safe request manager
+        ollama_manager = get_ollama_manager()
         agent_response, success = ollama_manager.make_request(
             self.name, 
             full_prompt, 
@@ -303,9 +304,21 @@ AS {name.upper()} THE RIVAL:
         self.conversation_history.append(message)
         return message
     
-    def reset_conversation(self):
-        """Clear conversation history"""
+    def reset_conversation_state(self):
+        """Reset only the conversation state while preserving memories.
+        This is used when a player walks away and comes back."""
         self.conversation_history = []
+    
+    def reset_conversation(self):
+        """Reset both conversation state and memories.
+        WARNING: This will clear ALL conversation history and should only be used
+        when starting a completely new game session."""
+        self.conversation_history = []
+        # Get agent's memory and clear it
+        agent_memory = self.memory_manager.get_npc_memory(self.name)
+        if agent_memory:
+            agent_memory.memories.clear()
+            agent_memory.known_facts.clear()
     
     def get_stats(self) -> Dict:
         """Get agent statistics including memory stats"""
