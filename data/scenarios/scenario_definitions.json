@@ -1,0 +1,320 @@
+{
+    "scenarios": {
+        "winter_turnout_discussion": {
+            "scenario_id": "winter_turnout_discussion",
+            "title": "Winter Turnout Schedule Planning",
+            "description": "With colder weather approaching, the team needs to revise the daily turnout schedule to balance horse welfare, practical constraints, and individual preferences.",
+            "duration": "medium",
+            "difficulty": "moderate",
+            "location_triggers": {
+                "stable": {
+                    "scenario_probability": 0.8,
+                    "required_npcs": ["oskar_stable_hand", "astrid_stable_hand"],
+                    "optional_npcs": ["andy_trainer", "chris_rival"]
+                },
+                "paddock": {
+                    "scenario_probability": 0.6,
+                    "required_npcs": ["andy_trainer"],
+                    "optional_npcs": ["chris_rival", "elin_behaviourist"]
+                },
+                "pasture": {
+                    "scenario_probability": 0.7,
+                    "required_npcs": ["elin_behaviourist"],
+                    "optional_npcs": ["oskar_stable_hand"]
+                }
+            },
+            "required_npcs": ["oskar_stable_hand", "elin_behaviourist"],
+            "optional_npcs": ["astrid_stable_hand", "andy_trainer", "chris_rival"],
+            "memory_hooks": {
+                "winter_schedules": {
+                    "topic": "Previous winter schedules",
+                    "confidence_degradation": "MEDIUM",
+                    "source": "EXPERIENCE",
+                    "tags": ["winter_planning", "turnout_schedule"]
+                },
+                "horse_preferences": {
+                    "topic": "Individual horse preferences",
+                    "confidence_degradation": "HIGH",
+                    "source": "OBSERVATION",
+                    "tags": ["horse_care", "individual_needs"]
+                },
+                "weather_patterns": {
+                    "topic": "Weather patterns and impact",
+                    "confidence_degradation": "LOW",
+                    "source": "EXPERIENCE",
+                    "tags": ["weather_adaptation", "seasonal_changes"]
+                }
+            },
+            "rag_context": {
+                "required_topics": [
+                    "Winter horse care protocols",
+                    "Turnout timing and weather considerations",
+                    "Paddock vs pasture usage strategies",
+                    "Cold weather horse management",
+                    "Scheduling coordination methods"
+                ],
+                "confidence_threshold": 0.7,
+                "max_context_items": 3
+            }
+        },
+        "hay_delivery_coordination": {
+            "scenario_id": "hay_delivery_coordination",
+            "title": "Coordinating the Hay Delivery",
+            "description": "The monthly hay delivery arrives, requiring coordination between staff to inspect, sort, and store different types of hay for various horses' dietary needs.",
+            "duration": "short",
+            "difficulty": "easy",
+            "location_triggers": {
+                "stable": {
+                    "scenario_probability": 0.9,
+                    "required_npcs": ["oskar_stable_hand", "astrid_stable_hand"],
+                    "optional_npcs": ["andy_trainer", "chris_rival"]
+                },
+                "paddock": {
+                    "scenario_probability": 0.4,
+                    "required_npcs": [],
+                    "optional_npcs": ["andy_trainer", "chris_rival"]
+                }
+            },
+            "required_npcs": ["oskar_stable_hand", "astrid_stable_hand"],
+            "optional_npcs": ["andy_trainer", "chris_rival", "elin_behaviourist"],
+            "memory_hooks": {
+                "previous_deliveries": {
+                    "topic": "Previous hay deliveries",
+                    "confidence_degradation": "MEDIUM",
+                    "source": "EXPERIENCE",
+                    "tags": ["hay_delivery", "quality_standards"]
+                },
+                "dietary_requirements": {
+                    "topic": "Horses' dietary needs",
+                    "confidence_degradation": "HIGH",
+                    "source": "KNOWLEDGE",
+                    "tags": ["horse_nutrition", "individual_needs"]
+                }
+            },
+            "rag_context": {
+                "required_topics": [
+                    "Hay quality assessment techniques",
+                    "Storage and rotation best practices",
+                    "Horse dietary requirements by type",
+                    "Supplier quality standards",
+                    "Feed storage safety protocols"
+                ],
+                "confidence_threshold": 0.7,
+                "max_context_items": 3
+            }
+        },
+        "pasture_rotation_planning": {
+            "scenario_id": "pasture_rotation_planning",
+            "title": "Planning the Pasture Rotation",
+            "description": "With the growing season ending, the team discusses which pasture areas need rest and how to rotate horses to maintain grass quality while meeting grazing needs.",
+            "duration": "medium",
+            "difficulty": "moderate",
+            "location_triggers": {
+                "pasture": {
+                    "scenario_probability": 0.9,
+                    "required_npcs": ["elin_behaviourist", "oskar_stable_hand"],
+                    "optional_npcs": ["astrid_stable_hand", "andy_trainer"]
+                },
+                "stable": {
+                    "scenario_probability": 0.5,
+                    "required_npcs": ["oskar_stable_hand"],
+                    "optional_npcs": ["astrid_stable_hand", "andy_trainer"]
+                }
+            },
+            "required_npcs": ["oskar_stable_hand", "elin_behaviourist"],
+            "optional_npcs": ["astrid_stable_hand", "andy_trainer", "chris_rival"],
+            "memory_hooks": {
+                "previous_rotations": {
+                    "topic": "Previous year's rotation success",
+                    "confidence_degradation": "MEDIUM",
+                    "source": "EXPERIENCE",
+                    "tags": ["pasture_management", "rotation_planning"]
+                },
+                "horse_grazing": {
+                    "topic": "Individual horses' grazing habits",
+                    "confidence_degradation": "HIGH",
+                    "source": "OBSERVATION",
+                    "tags": ["horse_behavior", "grazing_patterns"]
+                },
+                "grass_recovery": {
+                    "topic": "Pasture recovery times",
+                    "confidence_degradation": "LOW",
+                    "source": "KNOWLEDGE",
+                    "tags": ["environmental_care", "grass_management"]
+                }
+            },
+            "rag_context": {
+                "required_topics": [
+                    "Pasture management best practices",
+                    "Grass recovery and regeneration",
+                    "Horse grazing behavior patterns",
+                    "Seasonal pasture planning",
+                    "Sustainable land management"
+                ],
+                "confidence_threshold": 0.7,
+                "max_context_items": 3
+            }
+        },
+        "pre_competition_preparation": {
+            "scenario_id": "pre_competition_preparation",
+            "title": "Pre-Competition Preparation Discussion",
+            "description": "The day before a local competition, the team reviews final preparations, discusses strategy, and ensures everything is ready for competing horses and riders.",
+            "duration": "medium",
+            "difficulty": "moderate",
+            "location_triggers": {
+                "stable": {
+                    "scenario_probability": 0.8,
+                    "required_npcs": ["andy_trainer", "oskar_stable_hand"],
+                    "optional_npcs": ["chris_rival", "astrid_stable_hand"]
+                },
+                "paddock": {
+                    "scenario_probability": 0.7,
+                    "required_npcs": ["andy_trainer"],
+                    "optional_npcs": ["chris_rival", "elin_behaviourist"]
+                }
+            },
+            "required_npcs": ["andy_trainer", "oskar_stable_hand"],
+            "optional_npcs": ["chris_rival", "astrid_stable_hand", "elin_behaviourist"],
+            "memory_hooks": {
+                "previous_competitions": {
+                    "topic": "Previous competition experiences",
+                    "confidence_degradation": "MEDIUM",
+                    "source": "EXPERIENCE",
+                    "tags": ["competition_preparation", "lessons_learned"]
+                },
+                "horse_temperament": {
+                    "topic": "Competition horse temperaments",
+                    "confidence_degradation": "HIGH",
+                    "source": "OBSERVATION",
+                    "tags": ["horse_behavior", "competition_psychology"]
+                },
+                "equipment_preferences": {
+                    "topic": "Equipment preferences and backup plans",
+                    "confidence_degradation": "MEDIUM",
+                    "source": "EXPERIENCE",
+                    "tags": ["equipment_management", "competition_preparation"]
+                }
+            },
+            "rag_context": {
+                "required_topics": [
+                    "Competition preparation checklists",
+                    "Equipment maintenance and backup strategies",
+                    "Horse competition stress management",
+                    "Performance psychology techniques",
+                    "Competition day logistics"
+                ],
+                "confidence_threshold": 0.7,
+                "max_context_items": 3
+            }
+        },
+        "post_competition_debrief": {
+            "scenario_id": "post_competition_debrief",
+            "title": "Post-Competition Results Discussion",
+            "description": "After returning from yesterday's competition, the team discusses results, analyzes performance, and plans improvements based on what was learned.",
+            "duration": "medium",
+            "difficulty": "moderate",
+            "location_triggers": {
+                "stable": {
+                    "scenario_probability": 0.7,
+                    "required_npcs": ["andy_trainer"],
+                    "optional_npcs": ["chris_rival", "oskar_stable_hand", "astrid_stable_hand"]
+                },
+                "paddock": {
+                    "scenario_probability": 0.6,
+                    "required_npcs": ["andy_trainer"],
+                    "optional_npcs": ["chris_rival", "elin_behaviourist"]
+                }
+            },
+            "required_npcs": ["andy_trainer"],
+            "optional_npcs": ["chris_rival", "oskar_stable_hand", "astrid_stable_hand", "elin_behaviourist"],
+            "memory_hooks": {
+                "competition_events": {
+                    "topic": "Competition day events",
+                    "confidence_degradation": "HIGH",
+                    "source": "EXPERIENCE",
+                    "tags": ["competition_results", "performance_analysis"]
+                },
+                "judge_feedback": {
+                    "topic": "Judge feedback and scoring",
+                    "confidence_degradation": "HIGH",
+                    "source": "EXPERIENCE",
+                    "tags": ["competition_feedback", "performance_evaluation"]
+                },
+                "competitor_observations": {
+                    "topic": "Other competitors' performances",
+                    "confidence_degradation": "MEDIUM",
+                    "source": "OBSERVATION",
+                    "tags": ["competition_analysis", "performance_comparison"]
+                }
+            },
+            "rag_context": {
+                "required_topics": [
+                    "Competition performance analysis techniques",
+                    "Constructive feedback methods",
+                    "Sport psychology and improvement planning",
+                    "Equipment evaluation after competition",
+                    "Training adjustment strategies"
+                ],
+                "confidence_threshold": 0.7,
+                "max_context_items": 3
+            }
+        },
+        "new_horse_integration": {
+            "scenario_id": "new_horse_integration",
+            "title": "New Horse Arrival and Integration Planning",
+            "description": "A new horse has arrived at the stable and the team needs to assess its background, temperament, and needs to determine appropriate placement, training level, and integration approach.",
+            "duration": "long",
+            "difficulty": "complex",
+            "location_triggers": {
+                "stable": {
+                    "scenario_probability": 0.8,
+                    "required_npcs": ["oskar_stable_hand", "elin_behaviourist"],
+                    "optional_npcs": ["andy_trainer", "astrid_stable_hand"]
+                },
+                "paddock": {
+                    "scenario_probability": 0.6,
+                    "required_npcs": ["andy_trainer"],
+                    "optional_npcs": ["elin_behaviourist", "chris_rival"]
+                },
+                "pasture": {
+                    "scenario_probability": 0.7,
+                    "required_npcs": ["elin_behaviourist"],
+                    "optional_npcs": ["oskar_stable_hand", "astrid_stable_hand"]
+                }
+            },
+            "required_npcs": ["oskar_stable_hand", "elin_behaviourist"],
+            "optional_npcs": ["andy_trainer", "astrid_stable_hand", "chris_rival"],
+            "memory_hooks": {
+                "previous_integrations": {
+                    "topic": "Previous new horse integrations",
+                    "confidence_degradation": "MEDIUM",
+                    "source": "EXPERIENCE",
+                    "tags": ["new_horse_arrival", "integration_planning"]
+                },
+                "group_dynamics": {
+                    "topic": "Current horse personalities",
+                    "confidence_degradation": "HIGH",
+                    "source": "OBSERVATION",
+                    "tags": ["horse_behavior", "group_dynamics"]
+                },
+                "stall_characteristics": {
+                    "topic": "Available stall locations",
+                    "confidence_degradation": "LOW",
+                    "source": "KNOWLEDGE",
+                    "tags": ["stable_management", "facility_planning"]
+                }
+            },
+            "rag_context": {
+                "required_topics": [
+                    "Horse integration best practices",
+                    "Behavioral assessment techniques",
+                    "Pasture group dynamics and compatibility",
+                    "New horse stress management",
+                    "Training level evaluation methods"
+                ],
+                "confidence_threshold": 0.7,
+                "max_context_items": 3
+            }
+        }
+    }
+} 
