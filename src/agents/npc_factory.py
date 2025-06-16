@@ -26,7 +26,6 @@ class NPCFactory:
         if enable_rag and RAG_AVAILABLE:
             try:
                 # Create RAG-enhanced agent without initial location
-                print(f"🔥 Creating RAG-enhanced {npc_config_name}")
                 return create_rag_enhanced_agent(npc_config_name, memory_manager, enable_rag=True)
             except Exception as e:
                 print(f"⚠️  Failed to create RAG-enhanced {npc_config_name}: {e}")
@@ -35,7 +34,6 @@ class NPCFactory:
                 return ScalableNPCAgent(npc_config_name, memory_manager)
         else:
             # Create regular agent without initial location
-            print(f"📚 Creating standard {npc_config_name}")
             return ScalableNPCAgent(npc_config_name, memory_manager)
     
     @staticmethod
@@ -52,11 +50,11 @@ class NPCFactory:
         
         # Distribute NPCs to default locations
         default_distribution = {
-            "oskar_stable_hand": "stable",
-            "astrid_stable_hand": "stable",
-            "andy_trainer": "paddock",
-            "chris_rival": "arena",
-            "elin_behaviourist": "pasture"
+            "Oskar": "stable",
+            "Astrid": "paddock",  # Move Astrid to paddock
+            "Andy": "paddock", 
+            "Chris": "stable",  # Move Chris to stable (he likes to show off)
+            "Elin": "pasture"
         }
         
         # Move NPCs to their default locations
@@ -64,7 +62,6 @@ class NPCFactory:
             default_location = default_distribution.get(npc.name, "stable")
             npc.move_to_location(default_location)
             memory_manager.update_npc_location(npc.name, default_location)
-            print(f"📍 Placed {npc.name} at {default_location}")
         
         return npcs
     
