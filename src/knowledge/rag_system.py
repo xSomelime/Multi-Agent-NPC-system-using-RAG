@@ -13,10 +13,16 @@ from dataclasses import dataclass
 from pathlib import Path
 import numpy as np
 
+# Disable tokenizers progress bars
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
+
 try:
     from sklearn.neighbors import NearestNeighbors
     from sklearn.metrics.pairwise import cosine_similarity
     from sentence_transformers import SentenceTransformer
+    # Disable transformers progress bars
+    import transformers
+    transformers.logging.set_verbosity_error()
 except ImportError as e:
     logging.error(f"Required packages missing: {e}")
     logging.error("Install with: pip install scikit-learn sentence-transformers")
@@ -149,7 +155,7 @@ class RAGKnowledgeBase:
                 
             # Create embedding
             try:
-                embedding = self.embedding_model.encode(chunk.content, convert_to_numpy=True)
+                embedding = self.embedding_model.encode(chunk.content, convert_to_numpy=True, show_progress_bar=False)
                 chunk.embedding = embedding
                 
                 self.knowledge_chunks.append(chunk)
@@ -202,7 +208,7 @@ class RAGKnowledgeBase:
         
         # Create query embedding
         try:
-            query_embedding = self.embedding_model.encode(query, convert_to_numpy=True)
+            query_embedding = self.embedding_model.encode(query, convert_to_numpy=True, show_progress_bar=False)
             query_embedding = query_embedding.reshape(1, -1)
         except Exception as e:
             logging.error(f"Error creating query embedding: {e}")
