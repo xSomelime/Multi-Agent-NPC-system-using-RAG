@@ -14,53 +14,114 @@ import sys
 import logging
 import requests
 import json
-from typing import Dict, List, Optional, Tuple
-from fastapi import FastAPI, HTTPException, Body
+import traceback
+import time
+from typing import Dict, List, Optional, Tuple, Any
+from fastapi import FastAPI, HTTPException, Body, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from pydantic import BaseModel, Field
 import uvicorn
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
+# Configure logging with more detail
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S'
+)
 logger = logging.getLogger(__name__)
 
-def check_ollama_service():
-    """Check if Ollama service is running"""
-    try:
-        response = requests.get("http://localhost:11434/api/tags", timeout=5)
-        if response.status_code == 200:
-            return True
-        return False
-    except requests.exceptions.RequestException:
-        return False
-
-# Check Ollama service first
-if not check_ollama_service():
-    print("❌ Ollama service is not running!")
-    print("Please start Ollama with 'ollama serve' in a separate terminal")
+# Import core components
+try:
+    from src.core.message_types import NPCRole, Message
+    from src.core.config_loaders import RoleTemplateLoader, NPCLoader
+    from src.core.system_manager import create_enhanced_npc_system, show_npc_info, get_conversation_system
+except ImportError as e:
+    logger.error(f"❌ Failed to import core components: {e}")
     sys.exit(1)
 
-print("✅ Ollama service is running")
+# Import agent components
+try:
+    from src.agents.base_agent import ScalableNPCAgent
+    from src.agents.npc_factory import NPCFactory
+    from src.agents.ollama_manager import OllamaRequestManager, get_ollama_manager, start_ollama_service, ensure_ollama_model
+except ImportError as e:
+    logger.error(f"❌ Failed to import agent components: {e}")
+    sys.exit(1)
+
+# Import coordination components
+try:
+    from src.coordination.conversational_momentum import ConversationalMomentum
+    from src.coordination.conversation_manager import EnhancedConversationManager
+except ImportError as e:
+    logger.error(f"❌ Failed to import coordination components: {e}")
+    sys.exit(1)
+
+# Initialize Ollama service and model
+logger.info("🔄 Starting Ollama service...")
+if not start_ollama_service():
+    logger.error("❌ Failed to start Ollama service")
+    sys.exit(1)
+
+logger.info("🔄 Ensuring model availability...")
+if not ensure_ollama_model():
+    logger.error("❌ Failed to ensure model availability")
+    sys.exit(1)
+
+# Global request manager with error handling
+try:
+    ollama_manager = get_ollama_manager()
+except Exception as e:
+    logger.error(f"❌ Failed to initialize Ollama manager: {e}")
+    sys.exit(1)
 
 # Add project root to path
 project_root = os.path.dirname(os.path.abspath(__file__))
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
-from src.core.system_manager import create_enhanced_npc_system
-
-# Initialize the NPC system in UE5 mode
-print("🔄 Initializing NPC system in UE5 mode...")
-manager = create_enhanced_npc_system(enable_rag=True, mode="ue5")
-if not manager:
-    print("❌ Failed to initialize NPC system")
+try:
+    from src.core.system_manager import create_enhanced_npc_system
+except ImportError as e:
+    logger.error(f"❌ Failed to import system manager: {e}")
     sys.exit(1)
 
-print("✅ NPC system initialized successfully")
-print("👥 Available NPCs:", manager.list_agents())
+# Initialize the NPC system in UE5 mode
+logger.info("🔄 Initializing NPC system in UE5 mode...")
+try:
+    manager = create_enhanced_npc_system(enable_rag=True, mode="ue5")
+    if not manager:
+        logger.error("❌ Failed to initialize NPC system")
+        sys.exit(1)
+except Exception as e:
+    logger.error(f"❌ Error initializing NPC system: {e}")
+    logger.debug(traceback.format_exc())
+    sys.exit(1)
+
+logger.info("✅ NPC system initialized successfully")
+logger.info(f"👥 Available NPCs: {manager.list_agents()}")
+
+# Pydantic models for request/response validation
+class ConversationRequest(BaseModel):
+    npc_name: str = Field(..., description="Name of the NPC to talk to")
+    message: str = Field(..., description="Message to send to the NPC")
+    location: Optional[str] = Field(None, description="Current player location")
+
+class LocationUpdate(BaseModel):
+    npc_name: str = Field(..., description="Name of the NPC to move")
+    location: str = Field(..., description="New location for the NPC")
+    reason: Optional[str] = Field(None, description="Reason for the movement")
+
+class SystemStatus(BaseModel):
+    status: str = Field(..., description="System status")
+    version: str = Field(..., description="API version")
+    features: List[str] = Field(..., description="Available features")
+    npcs: List[str] = Field(..., description="Available NPCs")
+    current_location: str = Field(..., description="Current player location")
 
 # Create FastAPI app
 app = FastAPI(
-    title="Multi-Agent NPC System",
+    title="NPC Conversation System",
     description="REST API for horse management game NPCs with dynamic locations",
     version="2.0"
 )
@@ -74,206 +135,185 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-@app.get("/")
+# Global error handler
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    """Handle all unhandled exceptions"""
+    logger.error(f"❌ Unhandled exception: {exc}")
+    logger.error(traceback.format_exc())
+    return JSONResponse(
+        status_code=500,
+        content={
+            "error": "Internal server error",
+            "detail": str(exc),
+            "type": type(exc).__name__
+        }
+    )
+
+@app.get("/", response_model=SystemStatus)
 async def root():
     """Root endpoint - system status"""
-    return {
-        "status": "running",
-        "version": "2.0",
-        "features": ["dynamic_locations", "memory", "rag"]
-    }
-
-@app.post("/conversation")
-async def send_message(data: Dict = Body(...)):
-    """Send message to specific NPC"""
     try:
-        # Log raw request data with more detail
-        logger.info("Received request data:")
-        logger.info(f"Type: {type(data)}")
-        logger.info(f"Content: {data}")
-        
-        # If data is string, try to clean and parse it
-        if isinstance(data, str):
-            try:
-                # Clean the string of any potential problematic characters
-                cleaned_data = data.strip().replace('\x00', '')
-                data = json.loads(cleaned_data)
-                logger.info(f"Parsed string data into: {data}")
-            except json.JSONDecodeError as je:
-                logger.error(f"JSON parsing error: {je}")
-                return {
-                    "error": "Invalid JSON format",
-                    "details": str(je),
-                    "received": data
-                }
-        
-        # Try to get npc_id and message, being lenient with casing
-        npc_id = None
-        message = None
-        location = None
-        is_end = False
-        
-        # Check common variations of field names
-        for key in data:
-            key_lower = key.lower()
-            if key_lower in ['npc_id', 'npcid', 'npc']:
-                npc_id = str(data[key]).lower()
-            elif key_lower in ['message', 'msg', 'text', 'player_message']:
-                message = str(data[key])
-            elif key_lower == 'location':
-                location = str(data[key])
-            elif key_lower == 'is_end':
-                is_end = bool(data[key])
-
-        # Log parsed values
-        logger.info(f"Parsed values - NPC: {npc_id}, Message: {message}, Location: {location}")
-
-        # Update location if provided
-        if location:
-            try:
-                manager.move_player_to_location(location)
-                logger.info(f"Updated player location to: {location}")
-            except Exception as e:
-                logger.warning(f"Failed to update location: {e}")
-
-        # Get list of available NPCs and create mapping
-        available_npcs = manager.list_agents()
-        npc_map = {}
-        
-        # Map both full names and short names
-        for full_name in available_npcs:
-            npc_map[full_name.lower()] = full_name
-            # Map short name (e.g., "oskar" -> "oskar_stable_hand")
-            short_name = full_name.split('_')[0].lower()
-            npc_map[short_name] = full_name
-        
-        if not npc_id:
-            return {
-                "npc": "unknown",
-                "message": f"Please specify an NPC. Available NPCs: {list(available_npcs)}",
-                "success": False,
-                "time": 0
-            }
-            
-        # Try to find the full NPC name
-        actual_npc_id = npc_map.get(npc_id.lower())
-        if not actual_npc_id:
-            return {
-                "npc": npc_id,
-                "message": f"NPC '{npc_id}' not found. Available NPCs: {list(available_npcs)}",
-                "success": False,
-                "time": 0
-            }
-        
-        # Get response from NPC using the full name
-        response, success, response_time = manager.send_to_agent(actual_npc_id, message or "")
-        
-        result = {
-            "npc": actual_npc_id,
-            "message": response,
-            "success": success,
-            "time": response_time
-        }
-        return result
-        
-    except Exception as e:
-        logger.error(f"Error in conversation: {str(e)}")
-        logger.error(f"Request data was: {data}")
         return {
-            "error": "Failed to process request",
-            "details": str(e),
-            "received_data": str(data)
+            "status": "running",
+            "version": "2.0",
+            "features": ["dynamic_locations", "memory", "rag"],
+            "npcs": manager.list_agents(),
+            "current_location": manager.current_location or "unknown"
         }
+    except Exception as e:
+        logger.error(f"Error in root endpoint: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/npcs")
-async def list_npcs():
-    """Get list of available NPCs"""
+async def get_available_npcs():
+    """Get list of NPCs available for conversation at current location"""
     try:
-        npcs = manager.list_agents()
-        return {"npcs": npcs}
+        targets = manager.conversation_manager.get_available_conversation_targets()
+        return {
+            "location": targets["location"],
+            "npcs": targets["npcs"],
+            "status": "success"
+        }
     except Exception as e:
-        logger.error(f"Error listing NPCs: {e}")
+        logger.error(f"Error getting available NPCs: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.get("/conversation_targets")
-async def get_conversation_targets():
-    """Get NPCs available for conversation at current location"""
+@app.post("/conversation")
+async def send_message(request: ConversationRequest):
+    """Send message to specific NPC and get their response.
+    This is the main endpoint used by Unreal Engine for NPC interactions."""
     try:
-        return manager.get_available_conversation_targets()
-    except Exception as e:
-        logger.error(f"Error getting conversation targets: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.post("/group_conversation/start")
-async def start_group_conversation(data: Dict = Body(...)):
-    """Start a group conversation with selected NPCs"""
-    try:
-        npc_names = data.get('npc_names', [])
-        message = data.get('message', '')
+        # Validate NPC exists
+        if request.npc_name not in manager.agents:
+            raise HTTPException(
+                status_code=404,
+                detail=f"NPC '{request.npc_name}' not found"
+            )
+            
+        # Update player location if provided
+        if request.location:
+            try:
+                manager.move_player_to_location(request.location)
+            except Exception as e:
+                logger.warning(f"Failed to update player location: {e}")
         
-        if not npc_names or not message:
-            raise HTTPException(status_code=400, detail="Missing npc_names or message")
-            
-        result = manager.start_group_conversation(npc_names, message)
-        if "error" in result:
-            raise HTTPException(status_code=400, detail=result["error"])
-            
-        return result
-    except Exception as e:
-        logger.error(f"Error starting group conversation: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.post("/group_conversation/{conversation_id}/message")
-async def send_group_message(conversation_id: str, data: Dict = Body(...)):
-    """Send message to an active group conversation"""
-    try:
-        message = data.get('message', '')
-        if not message:
-            raise HTTPException(status_code=400, detail="Missing message")
-            
-        if conversation_id not in manager.active_group_conversations:
-            raise HTTPException(status_code=404, detail="Conversation not found")
-            
-        npc_names = manager.active_group_conversations[conversation_id]
-        responses = []
+        # If no message, end conversation
+        if not request.message:
+            manager.conversation_manager.end_conversation(request.npc_name)
+            return {
+                "npc": request.npc_name,
+                "message": "",
+                "success": True,
+                "conversation_ended": True,
+                "location": manager.current_location
+            }
         
-        for name in npc_names:
-            response, success, time = manager.send_to_agent(name, message)
-            if success:
-                responses.append({
-                    "npc": name,
-                    "response": response,
-                    "time": time
-                })
+        # Get response from NPC
+        response, success, time_taken = manager.conversation_manager.send_to_agent(
+            request.npc_name,
+            request.message
+        )
         
-        return {"responses": responses}
-    except Exception as e:
-        logger.error(f"Error in group conversation: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.post("/group_conversation/{conversation_id}/end")
-async def end_group_conversation(conversation_id: str):
-    """End a group conversation"""
-    try:
-        manager.end_group_conversation(conversation_id)
-        return {"status": "success"}
-    except Exception as e:
-        logger.error(f"Error ending group conversation: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.post("/update_locations")
-async def update_locations(data: Dict = Body(...)):
-    """Update NPC locations from UE5"""
-    try:
-        locations = data.get('locations', {})
-        success, message = manager.update_ue5_locations(locations)
         if not success:
-            raise HTTPException(status_code=400, detail=message)
-        return {"status": "success", "message": message}
+            # Handle Ollama errors
+            if isinstance(response, Exception):
+                error_msg = str(response)
+                if isinstance(response, requests.exceptions.ConnectionError):
+                    error_msg = "Lost connection to Ollama service"
+                elif isinstance(response, requests.exceptions.Timeout):
+                    error_msg = "Ollama request timed out"
+                raise HTTPException(
+                    status_code=503,
+                    detail=f"Ollama service error: {error_msg}"
+                )
+        
+        return {
+            "npc": request.npc_name,
+            "message": response,
+            "success": success,
+            "time": time_taken,
+            "conversation_ended": False,
+            "location": manager.current_location
+        }
+        
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error(f"Error updating locations: {e}")
+        logger.error(f"Error in conversation: {e}")
+        logger.debug(traceback.format_exc())
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/location")
+async def update_location(update: LocationUpdate):
+    """Update NPC location (used by UE5 for NPC movement)"""
+    try:
+        # Validate NPC exists
+        if update.npc_name not in manager.agents:
+            raise HTTPException(
+                status_code=404,
+                detail=f"NPC '{update.npc_name}' not found"
+            )
+        
+        # Move NPC
+        success = manager.move_npc_to_location(
+            update.npc_name,
+            update.location,
+            update.reason
+        )
+        
+        if not success:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Failed to move {update.npc_name} to {update.location}"
+            )
+        
+        return {
+            "success": True,
+            "npc": update.npc_name,
+            "location": update.location,
+            "message": f"Moved {update.npc_name} to {update.location}"
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error updating location: {e}")
+        logger.debug(traceback.format_exc())
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/health")
+async def health_check():
+    """Health check endpoint"""
+    try:
+        # Check Ollama service
+        ollama_ok = ollama_manager.check_service()
+        
+        # Check system status
+        system_ok = manager is not None and len(manager.agents) > 0
+        
+        status = "healthy" if ollama_ok and system_ok else "degraded"
+        
+        return {
+            "status": status,
+            "system": "npc_conversation",
+            "ollama": "ok" if ollama_ok else "error",
+            "npcs": len(manager.agents) if manager else 0
+        }
+    except Exception as e:
+        logger.error(f"Error in health check: {e}")
+        return {
+            "status": "error",
+            "system": "npc_conversation",
+            "error": str(e)
+        }
 
 if __name__ == "__main__":
     # Run the FastAPI server
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(
+        app,
+        host="0.0.0.0",
+        port=8000,
+        log_level="info",
+        access_log=True
+    )
