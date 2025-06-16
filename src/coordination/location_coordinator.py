@@ -37,33 +37,25 @@ class LocationCoordinator:
                 "name": "Main Stable",
                 "noise_level": "moderate",
                 "capacity": 8,
-                "typical_activities": ["grooming", "feeding", "tacking up"],
+                "typical_activities": ["grooming", "feeding", "tacking up", "morning turnout", "evening stabling"],
                 "connected_locations": ["paddock", "pasture"],
-                "description": "A well-maintained stable with individual stalls"
+                "description": "The main stable building where horses are kept, groomed, and prepared for activities"
             },
             "paddock": {
                 "name": "Training Paddock",
                 "noise_level": "moderate",
                 "capacity": 4,
-                "typical_activities": ["training", "lunging", "exercise"],
-                "connected_locations": ["stable", "arena"],
-                "description": "A fenced area for horse training"
+                "typical_activities": ["training", "lunging", "exercise", "ground work", "cooling down"],
+                "connected_locations": ["stable", "pasture"],
+                "description": "A fenced training area for horse exercise and groundwork"
             },
             "pasture": {
                 "name": "Grazing Pasture",
                 "noise_level": "quiet",
                 "capacity": 12,
-                "typical_activities": ["grazing", "resting", "free exercise"],
-                "connected_locations": ["stable"],
-                "description": "A large open field for horses to graze"
-            },
-            "arena": {
-                "name": "Competition Arena",
-                "noise_level": "variable",
-                "capacity": 6,
-                "typical_activities": ["competition", "advanced training", "demonstrations"],
-                "connected_locations": ["paddock"],
-                "description": "A professional arena for competitions and training"
+                "typical_activities": ["grazing", "resting", "free exercise", "turnout", "socializing"],
+                "connected_locations": ["stable", "paddock"],
+                "description": "A large open field where horses can graze and socialize freely"
             }
         }
         

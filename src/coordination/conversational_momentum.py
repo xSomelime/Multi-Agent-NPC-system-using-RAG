@@ -134,6 +134,12 @@ class ConversationalMomentum:
     
     def _check_memory_trigger(self, message: str, agent_name: str) -> bool:
         """Check if agent has relevant memories about the topic"""
+        # Don't trigger memory responses for simple greetings
+        message_lower = message.lower()
+        social_greetings = ["hello", "hi", "hey", "good morning", "good afternoon", "good evening", "how are you"]
+        if any(greeting in message_lower for greeting in social_greetings):
+            return False
+        
         agent_memory = self.memory_manager.get_npc_memory(agent_name)
         if not agent_memory:
             return False
@@ -161,7 +167,12 @@ class ConversationalMomentum:
                 if relevant:
                     memory_context = f"\nYou remember: {relevant[0].content}\n"
         
-        if trigger_reason == "mentioned_directly":
+        # Check if this is a greeting
+        is_greeting = any(greeting in original_message.lower() for greeting in ["hello", "hi", "hey", "good morning", "good afternoon", "good evening"])
+        
+        if is_greeting:
+            instruction = f"Give a brief, friendly greeting back to {speaker_name}. Don't give professional advice."
+        elif trigger_reason == "mentioned_directly":
             instruction = f"You were directly mentioned by {speaker_name}. Give a brief, natural response."
         elif trigger_reason == "asked_question":
             instruction = f"Answer {speaker_name}'s question. Keep it conversational and brief."
