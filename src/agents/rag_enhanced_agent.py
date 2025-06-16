@@ -46,7 +46,7 @@ class RAGEnhancedNPCAgent:
         if self.enable_rag:
             try:
                 self.rag_interface = get_npc_rag_interface()
-                logging.info(f"RAG enabled for {self.base_agent.name}")
+                # RAG enabled silently
             except Exception as e:
                 logging.warning(f"Failed to initialize RAG for {self.base_agent.name}: {e}")
                 self.enable_rag = False
@@ -110,9 +110,23 @@ class RAGEnhancedNPCAgent:
         # Build conversation type and opinions (existing logic)
         conversation_type = self.base_agent.detect_conversation_type(user_input)
         
+        # Get speaking style from personality
+        speaking_style = self.base_agent.npc_data.get('personality', {}).get('speaking_style', {})
+        if isinstance(speaking_style, dict):
+            common_phrases = speaking_style.get('common_phrases', [])
+            speech_patterns = speaking_style.get('speech_patterns', [])
+            vocabulary_style = speaking_style.get('vocabulary_style', '')
+        else:
+            common_phrases = []
+            speech_patterns = [str(speaking_style)]
+            vocabulary_style = str(speaking_style)
+        
         prompt_parts = [
             f"STAY IN CHARACTER: You are {self.base_agent.name}, not Dr. Evelyn or anyone else.",
-            enhanced_prompt  # This now includes RAG knowledge
+            enhanced_prompt,  # This now includes RAG knowledge
+            f"SPEAKING STYLE: Use a {vocabulary_style} style.",
+            f"COMMON PHRASES: Use phrases like: {', '.join(common_phrases[:3])}",
+            f"SPEECH PATTERNS: {', '.join(speech_patterns[:3])}"
         ]
         
         # Add memory context if available
@@ -156,7 +170,8 @@ class RAGEnhancedNPCAgent:
         full_prompt = "\n".join(prompt_parts)
         
         # Use thread-safe request manager
-        ollama_manager = self.base_agent.ollama_manager
+        from src.agents.ollama_manager import get_ollama_manager
+        ollama_manager = get_ollama_manager()
         agent_response, success = ollama_manager.make_request(
             self.base_agent.name, 
             full_prompt, 
@@ -169,11 +184,7 @@ class RAGEnhancedNPCAgent:
         response_time = end_time - start_time
         
         if success:
-            # Record conversation using base agent methods
-            self.base_agent.add_message("user", user_input)
-            self.base_agent.add_message("assistant", agent_response)
-            
-            # Record player telling this NPC something
+            # Only record in memory manager, not in base agent (to prevent duplication)
             self.base_agent.memory_manager.player_tells_npc(
                 self.base_agent.name, user_input, self.base_agent.current_location,
                 self.base_agent._extract_tags_from_message(user_input)
